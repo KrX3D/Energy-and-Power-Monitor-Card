@@ -39,19 +39,17 @@ class EnergyandPowerMonitorCard extends LitElement {
       combine_value_untracked: config.combine_value_untracked !== false,
       // Restore clean_subelement_names default to true unless explicitly false:
       clean_subelement_names: config.clean_subelement_names !== false,
-      // "Show Children" now controls whether to show any children beyond the selected room.
       show_children: config.show_children !== false,
       // Style defaults:
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
-      // Default room name position now "below"
       room_name_position: config.room_name_position || "below",
       tracked_value_size: config.tracked_value_size || "10.5px",
       untracked_value_size: config.untracked_value_size || "10.5px",
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
-      // New option: color untracked label (default false)
+      // New option: default false
       color_untracked_label: config.color_untracked_label === true,
       room: config.room, // may be undefined initially
       ...config,
@@ -119,25 +117,29 @@ class EnergyandPowerMonitorCard extends LitElement {
 
   // Builds a flat tree structure from the selected room.
   _createTreeView(entityId, level = 0, parentFriendlyNameToRemove = '') {
+    // Reset parent removal when starting a new tree.
+    if (level === 0) {
+      parentFriendlyNameToRemove = '';
+    }
     this.debugLog(`Creating tree view for ${entityId} at level ${level}`);
     const entityState = this.hass.states[entityId];
     if (!entityState || !entityState.attributes.selected_entities) {
       this.debugLog(`No selected entities for ${entityId}`);
       return [];
     }
-    // Start by cleaning the friendly name exactly as in the original:
+    // Clean the friendly name as in the original code.
     let friendlyName = entityState.attributes.friendly_name || entityId;
     friendlyName = friendlyName.replace(/ selected entities -/gi, '');
     friendlyName = friendlyName.replace(/ (Power|Energy)$/i, '');
     if (!friendlyName.trim()) {
       friendlyName = entityId;
     }
-    // Apply clean subelement names logic:
+    // Apply clean subelement names logic.
     if (this.config.clean_subelement_names) {
-      if (level === 1) {
+      if (level === 0) {
         parentFriendlyNameToRemove = friendlyName + ' ';
-      } else if (level > 1 && parentFriendlyNameToRemove && friendlyName.startsWith(parentFriendlyNameToRemove)) {
-        friendlyName = friendlyName.replace(new RegExp(`^${parentFriendlyNameToRemove}`), '');
+      } else if (level >= 1 && parentFriendlyNameToRemove && friendlyName.startsWith(parentFriendlyNameToRemove)) {
+        friendlyName = friendlyName.substring(parentFriendlyNameToRemove.length);
         this.debugLog(`Cleaned friendly name at level ${level}: ${friendlyName}`);
       }
     }
@@ -152,7 +154,6 @@ class EnergyandPowerMonitorCard extends LitElement {
     const percentage = (untrackedValue > 0 && baseValue > 0)
       ? Math.round((untrackedValue / baseValue) * 100)
       : 0;
-    // Always include the root item.
     let treeStructure = [{
       entity_id: entityId,
       friendly_name: friendlyName,
@@ -162,13 +163,12 @@ class EnergyandPowerMonitorCard extends LitElement {
       percentage: percentage,
       untrackedValue: untrackedValue
     }];
-    // If not showing children, do not process further levels.
+    // If "Show Children" is not enabled, do not add further levels.
     if (!this.config.show_children) {
       return treeStructure;
     }
     // Process each selected child.
     entityState.attributes.selected_entities.forEach(childEntityId => {
-      // For sensor children, always recursively build the tree.
       if (childEntityId.startsWith('sensor.energy_power_monitor_')) {
         const childTreeStructure = this._createTreeView(
           childEntityId,
@@ -177,7 +177,6 @@ class EnergyandPowerMonitorCard extends LitElement {
         );
         treeStructure = treeStructure.concat(childTreeStructure);
       } else {
-        // For non-sensor children, include them only if show_children is true.
         const childEntityState = this.hass.states[childEntityId];
         if (!childEntityState) return;
         let childFriendlyName = childEntityState.attributes.friendly_name || childEntityId;
@@ -187,7 +186,7 @@ class EnergyandPowerMonitorCard extends LitElement {
           childFriendlyName = childEntityId;
         }
         if (this.config.clean_subelement_names && parentFriendlyNameToRemove && childFriendlyName.startsWith(parentFriendlyNameToRemove)) {
-          childFriendlyName = childFriendlyName.replace(new RegExp(`^${parentFriendlyNameToRemove}`, 'i'), '');
+          childFriendlyName = childFriendlyName.substring(parentFriendlyNameToRemove.length);
           this.debugLog(`Cleaned child friendly name: ${childFriendlyName}`);
         }
         const childEntityValue = parseFloat(childEntityState.state) || 0;
@@ -253,13 +252,12 @@ class EnergyandPowerMonitorCard extends LitElement {
       }
     });
   }
-
+      
   _renderTreeView(treeStructure) {
-    // Use a larger indent per level (30px)
+    // Double the indent (each level adds 60px)
     const renderItems = (items) => {
       return items.map(item => {
-        // Each item gets a data-level attribute (for vertical lines)
-        const marginLeft = item.level * 30;
+        const marginLeft = item.level * 60;
         const roomState = this.hass.states[item.entity_id];
         const showIcon = this.config.show_icon && roomState && roomState.attributes.icon;
         const normalDisplay = item.value !== null ? `${item.value} ${item.unit}` : '';
@@ -455,6 +453,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         text-align: center;
         font-size: var(--untracked-value-size, 10.5px);
         line-height: 1.1;
+        margin-top: 2px; /* 2px extra spacing */
         color: var(--untracked-label-color, grey);
       }
     `;
