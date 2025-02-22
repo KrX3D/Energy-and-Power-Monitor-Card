@@ -48,6 +48,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
+      room: config.room, // may be undefined initially
       ...config,
     };
     this.debugLog(`Config updated: ${JSON.stringify(this.config)}`);
@@ -349,67 +350,97 @@ class EnergyandPowerMonitorCard extends LitElement {
           ? `U: ${untrackedValue} ${unit}`
           : '';
 
-        const childEntities = (roomState?.attributes.selected_entities || []).filter(childEntityId => 
-          !childEntityId.endsWith('_untracked_power') && 
-          !childEntityId.endsWith('_untracked_energy')
-        );
-        const sortedChildEntities = childEntities.sort((a, b) => {
-          const friendlyNameA = this.hass.states[a]?.attributes?.friendly_name || a;
-          const friendlyNameB = this.hass.states[b]?.attributes?.friendly_name || b;
-          return friendlyNameA.localeCompare(friendlyNameB);
-        });
-        const hasChildren = sortedChildEntities.length > 0;
-        // For inside the circle we allow multi-line (split), for outside use single line.
+        // For room name inside the circle, allow multi-line; if below, use a single line.
         const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
-        
-        return html`
-          <div class="tree-item" style="padding-left: ${level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
-            <div class="circle" data-entity-id="${item.entity_id}">
-              <div class="circle-content">
-                ${showIcon ? html`
-                  <ha-icon 
-                    style="--mdc-icon-size: ${this.config.icon_size}; position: relative; top: -5px;"
-                    icon="${roomState.attributes.icon}">
-                  </ha-icon>
-                ` : ''}
-                ${this.config.room_name_position === 'inside' && this.config.show_name 
-                  ? html`<div class="room-name ${!showIcon ? 'no-icon' : ''}">${friendlyNameDisplayInside}</div>` 
-                  : ''}
-                <div class="entity-value">${normalDisplay}</div>
-                ${untrackedDisplay ? html`<div class="untracked-value">${untrackedDisplay}</div>` : ''}
+
+        if (this.config.room_name_position === 'below' && this.config.show_name) {
+          return html`
+            <div class="tree-item" style="padding-left: ${level * 20}px;">
+              <div class="circle-wrapper" @click="${() => this._handleEntityClick(item.entity_id)}">
+                <div class="circle" data-entity-id="${item.entity_id}">
+                  <div class="circle-content">
+                    ${showIcon ? html`
+                      <ha-icon 
+                        style="--mdc-icon-size: ${this.config.icon_size}; position: relative; top: -5px;"
+                        icon="${roomState.attributes.icon}">
+                      </ha-icon>
+                    ` : ''}
+                    <div class="entity-value">${normalDisplay}</div>
+                    ${untrackedDisplay ? html`<div class="untracked-value">${untrackedDisplay}</div>` : ''}
+                  </div>
+                </div>
+                <div class="room-name">${item.friendly_name}</div>
               </div>
+              ${this._renderChildren(item, treeStructure, level)}
             </div>
-            ${this.config.room_name_position === 'below' && this.config.show_name 
-              ? html`
-                  <div class="room-name" style="padding-top: 4px; white-space: nowrap; text-align: center;">
-                    ${item.friendly_name}
-                  </div>` 
-              : ''}
-            ${hasChildren ? html`
-              <div class="children">
-                ${renderItems(
-                  sortedChildEntities.map(childEntityId => {
-                    const childItem = treeStructure.find(child => child.entity_id === childEntityId);
-                    if (this.config.show_children || (childItem && childEntityId.startsWith('sensor.energy_power_monitor_'))) {
-                      return {
-                        entity_id: childEntityId,
-                        friendly_name: childItem ? childItem.friendly_name : childEntityId,
-                        value: childItem ? childItem.value : null,
-                        unit: childItem ? childItem.unit : ''
-                      };
-                    }
-                    return null;
-                  }).filter(item => item !== null),
-                  level + 1
-                )}
+          `;
+        } else {
+          // For room name inside the circle or if not showing room name below
+          return html`
+            <div class="tree-item" style="padding-left: ${level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
+              <div class="circle" data-entity-id="${item.entity_id}">
+                <div class="circle-content">
+                  ${showIcon ? html`
+                    <ha-icon 
+                      style="--mdc-icon-size: ${this.config.icon_size}; position: relative; top: -5px;"
+                      icon="${roomState.attributes.icon}">
+                    </ha-icon>
+                  ` : ''}
+                  ${this.config.room_name_position === 'inside' && this.config.show_name 
+                    ? html`<div class="room-name ${!showIcon ? 'no-icon' : ''}">${friendlyNameDisplayInside}</div>` 
+                    : ''}
+                  <div class="entity-value">${normalDisplay}</div>
+                  ${untrackedDisplay ? html`<div class="untracked-value">${untrackedDisplay}</div>` : ''}
+                </div>
               </div>
-            ` : ''}
-          </div>
-        `;
+              ${this._renderChildren(item, treeStructure, level)}
+            </div>
+          `;
+        }
       });
     };
 
     return renderItems(treeStructure);
+  }
+
+  _renderChildren(item, treeStructure, level) {
+    const roomState = this.hass.states[item.entity_id];
+    const childEntities = (roomState?.attributes.selected_entities || []).filter(childEntityId => 
+      !childEntityId.endsWith('_untracked_power') && 
+      !childEntityId.endsWith('_untracked_energy')
+    );
+    const sortedChildEntities = childEntities.sort((a, b) => {
+      const friendlyNameA = this.hass.states[a]?.attributes?.friendly_name || a;
+      const friendlyNameB = this.hass.states[b]?.attributes?.friendly_name || b;
+      return friendlyNameA.localeCompare(friendlyNameB);
+    });
+    const hasChildren = sortedChildEntities.length > 0;
+    if (!hasChildren) return '';
+    return html`
+      <div class="children">
+        ${sortedChildEntities.map(childEntityId => {
+          const childItem = treeStructure.find(child => child.entity_id === childEntityId);
+          if (this.config.show_children || (childItem && childEntityId.startsWith('sensor.energy_power_monitor_'))) {
+            return {
+              entity_id: childEntityId,
+              friendly_name: childItem ? childItem.friendly_name : childEntityId,
+              value: childItem ? childItem.value : null,
+              unit: childItem ? childItem.unit : ''
+            };
+          }
+          return null;
+        }).filter(item => item !== null)
+        .map(childConfig => html`
+          <div class="tree-item" style="padding-left: ${(level + 1) * 20}px;" @click="${() => this._handleEntityClick(childConfig.entity_id)}">
+            <div class="circle" data-entity-id="${childConfig.entity_id}">
+              <div class="circle-content">
+                <div class="entity-value">${childConfig.value} ${childConfig.unit}</div>
+              </div>
+            </div>
+          </div>
+        `)}
+      </div>
+    `;
   }
 
   _getStyleVariables() {
@@ -459,6 +490,10 @@ class EnergyandPowerMonitorCard extends LitElement {
         padding: 16px;
         text-align: center; 
       }
+      .circle-wrapper {
+        display: inline-block;
+        text-align: center;
+      }
       .circle {
         position: relative;
         border-radius: 50%;
@@ -503,14 +538,12 @@ class EnergyandPowerMonitorCard extends LitElement {
       .room-name {
         margin: 0;
         font-size: var(--room-name-size, 10.5px);
-        margin-bottom: 3px;
+        margin-top: 4px;
+        white-space: nowrap;
       }
       .icon {
         font-size: var(--icon-size, 22px);
         margin-bottom: 3.5px;
-      }
-      .room-value.no-icon {
-        margin-top: 5px;
       }
       .tree-view {
         margin-top: 10px;
@@ -557,6 +590,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   setConfig(config) {
+    // Initialize defaults
     this._config = {
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
@@ -564,7 +598,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       combine_value_untracked: config.combine_value_untracked !== false,
       clean_subelement_names: config.clean_subelement_names !== false,
       show_children: config.show_children !== false,
-      // New style configuration defaults:
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
       room_name_position: config.room_name_position || "inside",
@@ -573,6 +606,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
+      room: config.room,
       ...config,
     };
     this.rooms = [];
@@ -599,6 +633,11 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       })
       .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
 
+    // If no room is set, default to the first room available
+    if (!this._config.room && this.rooms.length > 0) {
+      this._config.room = this.rooms[0].entity_id;
+      this.fireConfigChanged();
+    }
     this.requestUpdate();
   }
 
@@ -631,16 +670,20 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
-    // Create dropdown options for font sizes (8px to 20px in 0.5px steps)
+    // Dropdown options for font sizes (8px to 20px in 0.5px steps)
     const fontSizeOptions = [];
     for (let i = 8; i <= 20; i += 0.5) {
-      // Use fixed one decimal place
       fontSizeOptions.push(i.toFixed(1) + "px");
     }
-    // Create dropdown options for circle size (50px to 200px in 5px steps)
+    // Dropdown options for circle size (50px to 200px in 5px steps)
     const circleSizeOptions = [];
     for (let i = 50; i <= 200; i += 5) {
       circleSizeOptions.push(i + "px");
+    }
+    // Dropdown options for icon size (12px to 50px in 1px steps)
+    const iconSizeOptions = [];
+    for (let i = 12; i <= 50; i += 1) {
+      iconSizeOptions.push(i + "px");
     }
     
     const selectedRoom = this._config.room || "";
@@ -721,7 +764,11 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       </div>
       <div>
         <label for="icon_size">Icon Size:</label>
-        <input type="text" id="icon_size" name="icon_size" value="${this._config.icon_size}" @change="${this._toggleOption}">
+        <select id="icon_size" name="icon_size" @change="${this._toggleOption}">
+          ${iconSizeOptions.map(size => html`
+            <option value="${size}" ?selected="${this._config.icon_size === size}">${size}</option>
+          `)}
+        </select>
       </div>
       <div>
         <label for="circle_size">Circle Size:</label>
