@@ -42,14 +42,14 @@ class EnergyandPowerMonitorCard extends LitElement {
       // Style defaults:
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
-      room_name_position: config.room_name_position || "inside", // "inside" or "below"
+      room_name_position: config.room_name_position || "below", // default now "below"
       tracked_value_size: config.tracked_value_size || "10.5px",
       untracked_value_size: config.untracked_value_size || "10.5px",
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
-      // New option: color the untracked label with untracked_color?
-      color_untracked_label: config.color_untracked_label !== false,
+      // New option: default false
+      color_untracked_label: config.color_untracked_label === true,
       room: config.room, // may be undefined initially
       ...config,
     };
@@ -116,7 +116,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     return null;
   }
 
-  // Builds the tree structure.
+  // Builds a flat tree structure from the selected room entity.
   _createTreeView(entityId, level = 0, parentFriendlyNameToRemove = '') {
     this.debugLog(`Creating tree view for entity: ${entityId} at level ${level}`);
     const entityState = this.hass.states[entityId];
@@ -182,7 +182,7 @@ class EnergyandPowerMonitorCard extends LitElement {
           );
           treeStructure = treeStructure.concat(childTreeStructure);
         } else {
-          // When not showing full children, add only immediate children at a fixed indent.
+          // When not showing full children, add only immediate sensor children with a fixed level.
           const childEntityState = this.hass.states[childEntityId];
           if (!childEntityState) return;
           let childFriendlyName = childEntityState.attributes.friendly_name || childEntityId;
@@ -196,13 +196,12 @@ class EnergyandPowerMonitorCard extends LitElement {
           const childPercentage = childUntrackedValue > 0 && childEntityValue > 0 
             ? Math.round((childUntrackedValue / childEntityValue) * 100)
             : 0;
-          // Force level 1 indentation relative to the selected room.
           treeStructure.push({
             entity_id: childEntityId,
             friendly_name: childFriendlyName,
             value: childEntityValue,
             unit: childEntityUnit,
-            level: 1,
+            level: 1,  // fixed indent for immediate children
             percentage: childPercentage,
             untrackedValue: childUntrackedValue
           });
@@ -290,7 +289,7 @@ class EnergyandPowerMonitorCard extends LitElement {
   _renderTreeView(treeStructure) {
     const renderedEntities = new Set();
 
-    const renderItems = (items, level = 0) => {
+    const renderItems = (items) => {
       return items.map(item => {
         if (renderedEntities.has(item.entity_id)) {
           return '';
@@ -307,18 +306,10 @@ class EnergyandPowerMonitorCard extends LitElement {
         const friendlyName = item.friendly_name || item.entity_id;
         const friendlyNameDisplayInside = this.splitAtNearestSpace(friendlyName).map(line => html`<div class="friendly-name-line">${line}</div>`);
 
-        // Determine if there are child entities from the state (only if show_children is true)
-        const childEntities = (roomState && roomState.attributes.selected_entities 
-          ? roomState.attributes.selected_entities.filter(childEntityId => 
-              !childEntityId.endsWith('_untracked_power') && 
-              !childEntityId.endsWith('_untracked_energy')
-            )
-          : []);
-        const hasChildren = childEntities.length > 0 && this.config.show_children;
-        
+        // Render based on room name position.
         if (this.config.room_name_position === 'below' && this.config.show_name) {
           return html`
-            <div class="tree-item" style="padding-left: ${item.level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
+            <div class="tree-item" data-level="${item.level}" style="margin-left: ${item.level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
               <div class="circle-wrapper">
                 <div class="circle" data-entity-id="${item.entity_id}">
                   <div class="circle-content">
@@ -338,7 +329,7 @@ class EnergyandPowerMonitorCard extends LitElement {
           `;
         } else {
           return html`
-            <div class="tree-item" style="padding-left: ${item.level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
+            <div class="tree-item" data-level="${item.level}" style="margin-left: ${item.level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
               <div class="circle" data-entity-id="${item.entity_id}">
                 <div class="circle-content">
                   ${showIcon ? html`
@@ -468,6 +459,19 @@ class EnergyandPowerMonitorCard extends LitElement {
         white-space: normal;
         box-sizing: border-box;
       }
+      .tree-item {
+        position: relative;
+        margin-bottom: 4px;
+      }
+      /* Vertical line for hierarchy */
+      .tree-item[data-level]:not([data-level="0"])::before {
+        content: "";
+        position: absolute;
+        left: -10px;
+        top: 0;
+        bottom: 0;
+        border-left: 2px solid var(--divider-color, #e0e0e0);
+      }
       .friendly-name-line {
         margin: 0;
         line-height: 1.4;
@@ -486,29 +490,17 @@ class EnergyandPowerMonitorCard extends LitElement {
         margin-top: 10px;
         text-align: left;
       }
-      .tree-item {
-        cursor: pointer;
-        margin: 4px 0;
-      }
-      .children {
-        margin-left: 20px;
-        border-left: 2px solid var(--divider-color);
-        padding-left: 10px;
-      }
-      .entity-value {
-        flex: 0 1 auto;
-        text-align: center;
-        font-size: var(--tracked-value-size, 10.5px);
-        line-height: 1.1;
-        color: white;
-        margin-bottom: 3px;
-      }
       .untracked-value {
-        flex: 0 1 auto;
         text-align: center;
         font-size: var(--untracked-value-size, 10.5px);
         line-height: 1.1;
         color: var(--untracked-label-color, grey);
+      }
+      .entity-value {
+        text-align: center;
+        font-size: var(--tracked-value-size, 10.5px);
+        line-height: 1.1;
+        color: white;
       }
     `;
   }
@@ -535,14 +527,14 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       show_children: config.show_children !== false,
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
-      room_name_position: config.room_name_position || "inside",
+      room_name_position: config.room_name_position || "below",  // default "below"
       tracked_value_size: config.tracked_value_size || "10.5px",
       untracked_value_size: config.untracked_value_size || "10.5px",
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
-      // New option:
-      color_untracked_label: config.color_untracked_label !== false,
+      // New option: default false
+      color_untracked_label: config.color_untracked_label === true,
       room: config.room,
       ...config,
     };
@@ -674,12 +666,12 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       </div>
       <div>
         <label for="color_untracked_label">Color Untracked Label:</label>
-        <input type="checkbox" id="color_untracked_label" name="color_untracked_label" .checked="${this._config.color_untracked_label !== false}" @change="${this._toggleOption}">
+        <input type="checkbox" id="color_untracked_label" name="color_untracked_label" .checked="${this._config.color_untracked_label === true}" @change="${this._toggleOption}">
       </div>
       <div>
         <label for="room_name_position">Room Name Position:</label>
         <select id="room_name_position" name="room_name_position" @change="${this._toggleOption}">
-          <option value="inside" ?selected="${this._config.room_name_position === 'inside' || !this._config.room_name_position}">Inside</option>
+          <option value="inside" ?selected="${this._config.room_name_position === 'inside'}">Inside</option>
           <option value="below" ?selected="${this._config.room_name_position === 'below'}">Below</option>
         </select>
       </div>
