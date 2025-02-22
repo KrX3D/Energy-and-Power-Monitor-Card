@@ -49,8 +49,10 @@ class EnergyandPowerMonitorCard extends LitElement {
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
-      // New option: default false
+      // New option: color untracked label (default false)
       color_untracked_label: config.color_untracked_label === true,
+      // New option: remove_strings (a semicolon-separated list), default empty string
+      remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
       room: config.room, // may be undefined initially
       ...config,
     };
@@ -115,8 +117,10 @@ class EnergyandPowerMonitorCard extends LitElement {
     return null;
   }
 
-  // Build a flat tree structure. For level 0 (the selected room) we do not clean its name,
-  // but we use its original friendly name as the base for cleaning all child names.
+  // Build a flat tree structure from the selected room.
+  // The selected room’s name (level 0) is left untouched.
+  // For all children (level >= 1), if their friendly name starts with the selected room's name plus a space,
+  // it is removed. Also, any substrings specified in remove_strings (separated by ";") are removed.
   _createTreeView(entityId, level = 0, baseName = null) {
     // When starting at the root, reset baseName.
     const entityState = this.hass.states[entityId];
@@ -127,20 +131,26 @@ class EnergyandPowerMonitorCard extends LitElement {
     let originalFriendlyName = entityState.attributes.friendly_name || entityId;
     let friendlyName;
     if (level === 0) {
-      // Do not modify the main room's name for display.
+      // Leave the main room's name untouched.
       friendlyName = originalFriendlyName;
       baseName = originalFriendlyName;
     } else {
-      // For children, clean the name.
+      // For children, remove the main room's name prefix.
       friendlyName = (entityState.attributes.friendly_name || entityId)
                      .replace(/ selected entities -/gi, '')
                      .replace(/ (Power|Energy)$/i, '');
       if (baseName && friendlyName.startsWith(baseName + ' ')) {
         friendlyName = friendlyName.substring((baseName + ' ').length);
       }
-      if (!friendlyName.trim()) {
-        friendlyName = entityId;
-      }
+    }
+    // Remove any additional substrings specified in remove_strings.
+    if (this.config.remove_strings) {
+      const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
+      substrings.forEach(sub => {
+        // Remove all occurrences (case-insensitive)
+        friendlyName = friendlyName.replace(new RegExp(sub, "gi"), "");
+      });
+      friendlyName = friendlyName.trim();
     }
     const normalValue = parseFloat(entityState.state) || 0;
     let combinedValue = normalValue;
@@ -179,6 +189,14 @@ class EnergyandPowerMonitorCard extends LitElement {
                                   .replace(/ (Power|Energy)$/i, '');
         if (baseName && childFriendlyName.startsWith(baseName + ' ')) {
           childFriendlyName = childFriendlyName.substring((baseName + ' ').length);
+        }
+        // Also remove any substrings from remove_strings.
+        if (this.config.remove_strings) {
+          const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
+          substrings.forEach(sub => {
+            childFriendlyName = childFriendlyName.replace(new RegExp(sub, "gi"), "");
+          });
+          childFriendlyName = childFriendlyName.trim();
         }
         if (!childFriendlyName.trim()) {
           childFriendlyName = childEntityId;
@@ -246,7 +264,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       }
     });
   }
-
+      
   _renderTreeView(treeStructure) {
     // Use 60px per level for indentation.
     const renderItems = (items) => {
@@ -258,6 +276,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         const untrackedDisplay = this.config.show_untracked_values && item.untrackedValue !== null
           ? `U: ${item.untrackedValue} ${item.unit}`
           : '';
+        // For room name inside the circle, allow multi-line.
         const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
         if (this.config.room_name_position === 'below' && this.config.show_name) {
           return html`
@@ -409,7 +428,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         position: relative;
         margin-bottom: 4px;
       }
-      /* Vertical line for hierarchy for items with data-level > 0 */
+      /* Vertical line for hierarchy (for items with data-level > 0) */
       .tree-item[data-level]:not([data-level="0"])::before {
         content: "";
         position: absolute;
@@ -482,6 +501,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       circle_size: config.circle_size || "80px",
       // New option: default false
       color_untracked_label: config.color_untracked_label === true,
+      // New option: remove_strings (a semicolon-separated list), default empty string
+      remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
       room: config.room,
       ...config,
     };
@@ -610,6 +631,10 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           <option value="inside" ?selected="${this._config.room_name_position === 'inside'}">Inside</option>
           <option value="below" ?selected="${this._config.room_name_position === 'below'}">Below</option>
         </select>
+      </div>
+      <div>
+        <label for="remove_strings" title="Enter substrings separated by a semicolon (;) to remove from the name">Remove strings from name (separated by ;):</label>
+        <input type="text" id="remove_strings" name="remove_strings" .value="${this._config.remove_strings}" @change="${this._toggleOption}">
       </div>
       <div>
         <label for="tracked_value_size">Tracked Value Size:</label>
