@@ -728,3 +728,4 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 }
 
 customElements.define("energy-power-monitor-card-editor", EnergyandPowerMonitorCardEditor);
+
