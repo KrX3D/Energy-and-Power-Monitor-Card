@@ -46,8 +46,8 @@ class EnergyandPowerMonitorCard extends LitElement {
       tracked_value_size: config.tracked_value_size || "10.5px",
       untracked_value_size: config.untracked_value_size || "10.5px",
       room_name_size: config.room_name_size || "10.5px",
-      icon_size: config.icon_size || "24px",
-      circle_size: config.circle_size || "8em",
+      icon_size: config.icon_size || "22px",
+      circle_size: config.circle_size || "80px",
       ...config,
     };
     this.debugLog(`Config updated: ${JSON.stringify(this.config)}`);
@@ -61,7 +61,6 @@ class EnergyandPowerMonitorCard extends LitElement {
     let entities = [];
     if (this.hass) {
       try {
-        // Use the outer variable instead of shadowing it.
         entities = await this.hass.callWS({
           type: 'config/entity_registry/list'
         });
@@ -340,7 +339,6 @@ class EnergyandPowerMonitorCard extends LitElement {
           : 0;
         this.debugLog(`Percentage: ${percentage}`);
 
-        // Calculate border color based on percentage using our config colors.
         let borderColor = this._getBorderColor(percentage, untrackedValue);
         this.debugLog(`borderColor: ${borderColor}`);
 
@@ -361,23 +359,31 @@ class EnergyandPowerMonitorCard extends LitElement {
           return friendlyNameA.localeCompare(friendlyNameB);
         });
         const hasChildren = sortedChildEntities.length > 0;
-        const friendlyNameLines = this.splitAtNearestSpace(item.friendly_name);
-        const friendlyNameDisplay = friendlyNameLines.map(line => html`<div class="friendly-name-line">${line}</div>`);
-
+        // For inside the circle we allow multi-line (split), for outside use single line.
+        const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
+        
         return html`
           <div class="tree-item" style="padding-left: ${level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
             <div class="circle" data-entity-id="${item.entity_id}">
               <div class="circle-content">
-                ${showIcon ? html`<ha-icon class="icon" icon="${roomState.attributes.icon}"></ha-icon>` : ''}
+                ${showIcon ? html`
+                  <ha-icon 
+                    style="--mdc-icon-size: ${this.config.icon_size}; position: relative; top: -5px;"
+                    icon="${roomState.attributes.icon}">
+                  </ha-icon>
+                ` : ''}
                 ${this.config.room_name_position === 'inside' && this.config.show_name 
-                  ? html`<div class="room-name ${!showIcon ? 'no-icon' : ''}">${friendlyNameDisplay}</div>` 
+                  ? html`<div class="room-name ${!showIcon ? 'no-icon' : ''}">${friendlyNameDisplayInside}</div>` 
                   : ''}
                 <div class="entity-value">${normalDisplay}</div>
                 ${untrackedDisplay ? html`<div class="untracked-value">${untrackedDisplay}</div>` : ''}
               </div>
             </div>
             ${this.config.room_name_position === 'below' && this.config.show_name 
-              ? html`<div class="room-name" style="padding-top: 4px;">${friendlyNameDisplay}</div>` 
+              ? html`
+                  <div class="room-name" style="padding-top: 4px; white-space: nowrap; text-align: center;">
+                    ${item.friendly_name}
+                  </div>` 
               : ''}
             ${hasChildren ? html`
               <div class="children">
@@ -432,7 +438,6 @@ class EnergyandPowerMonitorCard extends LitElement {
     return html`
       <ha-card style="${this._getStyleVariables()}">
         <div class="container">
-          <!-- Tree View Rendering -->
           <div class="tree-view">
             ${this._renderTreeView(treeStructure)}
           </div>
@@ -460,9 +465,8 @@ class EnergyandPowerMonitorCard extends LitElement {
         display: inline-block;
         cursor: pointer;
         transition: background-color 0.3s;
-        width: var(--circle-size, 8em);
-        height: var(--circle-size, 8em);
-        aspect-ratio: 1;
+        width: var(--circle-size, 80px);
+        height: var(--circle-size, 80px);
       }
       .circle::before {
         content: "";
@@ -502,7 +506,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         margin-bottom: 3px;
       }
       .icon {
-        font-size: var(--icon-size, 24px);
+        font-size: var(--icon-size, 22px);
         margin-bottom: 3.5px;
       }
       .room-value.no-icon {
@@ -567,8 +571,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       tracked_value_size: config.tracked_value_size || "10.5px",
       untracked_value_size: config.untracked_value_size || "10.5px",
       room_name_size: config.room_name_size || "10.5px",
-      icon_size: config.icon_size || "24px",
-      circle_size: config.circle_size || "8em",
+      icon_size: config.icon_size || "22px",
+      circle_size: config.circle_size || "80px",
       ...config,
     };
     this.rooms = [];
@@ -627,13 +631,27 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
+    // Create dropdown options for font sizes (8px to 20px in 0.5px steps)
+    const fontSizeOptions = [];
+    for (let i = 8; i <= 20; i += 0.5) {
+      // Use fixed one decimal place
+      fontSizeOptions.push(i.toFixed(1) + "px");
+    }
+    // Create dropdown options for circle size (50px to 200px in 5px steps)
+    const circleSizeOptions = [];
+    for (let i = 50; i <= 200; i += 5) {
+      circleSizeOptions.push(i + "px");
+    }
+    
     const selectedRoom = this._config.room || "";
     return html`
       <div>
         <label for="room">Select Room:</label>
         <select id="room" @change="${this._roomChanged}">
           ${this.rooms.map(room => html`
-            <option value="${room.entity_id}" ?selected="${room.entity_id === selectedRoom}">${room.friendly_name}</option>
+            <option value="${room.entity_id}" ?selected="${room.entity_id === selectedRoom}">
+              ${room.friendly_name}
+            </option>
           `)}
         </select>
       </div>
@@ -661,7 +679,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         <label for="show_children">Show Children:</label>
         <input type="checkbox" id="show_children" name="show_children" .checked="${this._config.show_children !== false}" @change="${this._toggleOption}">
       </div>
-      <!-- New style options -->
+      <!-- Style Options -->
       <div>
         <label for="tracked_color">Tracked Color:</label>
         <input type="color" id="tracked_color" name="tracked_color" value="${this._config.tracked_color}" @change="${this._toggleOption}">
@@ -679,15 +697,27 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       </div>
       <div>
         <label for="tracked_value_size">Tracked Value Size:</label>
-        <input type="text" id="tracked_value_size" name="tracked_value_size" value="${this._config.tracked_value_size}" @change="${this._toggleOption}">
+        <select id="tracked_value_size" name="tracked_value_size" @change="${this._toggleOption}">
+          ${fontSizeOptions.map(size => html`
+            <option value="${size}" ?selected="${this._config.tracked_value_size === size}">${size}</option>
+          `)}
+        </select>
       </div>
       <div>
         <label for="untracked_value_size">Untracked Value Size:</label>
-        <input type="text" id="untracked_value_size" name="untracked_value_size" value="${this._config.untracked_value_size}" @change="${this._toggleOption}">
+        <select id="untracked_value_size" name="untracked_value_size" @change="${this._toggleOption}">
+          ${fontSizeOptions.map(size => html`
+            <option value="${size}" ?selected="${this._config.untracked_value_size === size}">${size}</option>
+          `)}
+        </select>
       </div>
       <div>
         <label for="room_name_size">Room Name Size:</label>
-        <input type="text" id="room_name_size" name="room_name_size" value="${this._config.room_name_size}" @change="${this._toggleOption}">
+        <select id="room_name_size" name="room_name_size" @change="${this._toggleOption}">
+          ${fontSizeOptions.map(size => html`
+            <option value="${size}" ?selected="${this._config.room_name_size === size}">${size}</option>
+          `)}
+        </select>
       </div>
       <div>
         <label for="icon_size">Icon Size:</label>
@@ -695,7 +725,11 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       </div>
       <div>
         <label for="circle_size">Circle Size:</label>
-        <input type="text" id="circle_size" name="circle_size" value="${this._config.circle_size}" @change="${this._toggleOption}">
+        <select id="circle_size" name="circle_size" @change="${this._toggleOption}">
+          ${circleSizeOptions.map(size => html`
+            <option value="${size}" ?selected="${this._config.circle_size === size}">${size}</option>
+          `)}
+        </select>
       </div>
     `;
   }
