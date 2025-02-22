@@ -22,7 +22,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     };
   }
 
-  debugEnabled = false; // Set to false to disable logging
+  debugEnabled = false; // Set to true to enable logging
 
   debugLog(message) {
     if (this.debugEnabled) {
@@ -37,24 +37,26 @@ class EnergyandPowerMonitorCard extends LitElement {
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
+      // Restore clean_subelement_names default to true unless explicitly false:
       clean_subelement_names: config.clean_subelement_names !== false,
+      // "Show Children" now controls whether to show any children beyond the selected room.
       show_children: config.show_children !== false,
       // Style defaults:
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
-      room_name_position: config.room_name_position || "below", // default now "below"
+      // Default room name position now "below"
+      room_name_position: config.room_name_position || "below",
       tracked_value_size: config.tracked_value_size || "10.5px",
       untracked_value_size: config.untracked_value_size || "10.5px",
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
-      // New option: default false
+      // New option: color untracked label (default false)
       color_untracked_label: config.color_untracked_label === true,
       room: config.room, // may be undefined initially
       ...config,
     };
     this.debugLog(`Config updated: ${JSON.stringify(this.config)}`);
-    
     this.rooms = [];
     this._fetchRooms();
   }
@@ -76,7 +78,6 @@ class EnergyandPowerMonitorCard extends LitElement {
       this.debugLog('this.hass is not yet available.');
       return;
     }
-
     this.rooms = entities
       .filter(entity =>
         entity.entity_id.startsWith('sensor.energy_power_monitor_') &&
@@ -85,6 +86,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       )
       .map(entity => {
         let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
+        // Original cleaning:
         friendlyName = friendlyName.replace(/ selected entities -/gi, '');
         friendlyName = friendlyName.replace(/ (Power|Energy)$/i, '');
         if (!friendlyName.trim()) {
@@ -97,7 +99,6 @@ class EnergyandPowerMonitorCard extends LitElement {
         };
       })
       .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
-
     this.debugLog(`Rooms updated: ${this.rooms.length} found.`);
     this.requestUpdate();
   }
@@ -116,51 +117,42 @@ class EnergyandPowerMonitorCard extends LitElement {
     return null;
   }
 
-  // Builds a flat tree structure from the selected room entity.
+  // Builds a flat tree structure from the selected room.
   _createTreeView(entityId, level = 0, parentFriendlyNameToRemove = '') {
-    this.debugLog(`Creating tree view for entity: ${entityId} at level ${level}`);
+    this.debugLog(`Creating tree view for ${entityId} at level ${level}`);
     const entityState = this.hass.states[entityId];
     if (!entityState || !entityState.attributes.selected_entities) {
-      this.debugLog(`No selected entities found for ${entityId}`);
+      this.debugLog(`No selected entities for ${entityId}`);
       return [];
     }
-
-    const selectedEntities = entityState.attributes.selected_entities.filter(entity =>
-      !entity.endsWith('_untracked_power') && !entity.endsWith('_untracked_energy')
-    );
-
+    // Start by cleaning the friendly name exactly as in the original:
     let friendlyName = entityState.attributes.friendly_name || entityId;
-    friendlyName = friendlyName.replace(/\s?(\b(selected entities - )?(power|leistung|energy|energie)\b)\s*$/i, '');
+    friendlyName = friendlyName.replace(/ selected entities -/gi, '');
+    friendlyName = friendlyName.replace(/ (Power|Energy)$/i, '');
     if (!friendlyName.trim()) {
       friendlyName = entityId;
     }
-
-    const cleanSubelementNames = this.config.clean_subelement_names !== false;
-    if (cleanSubelementNames) {
+    // Apply clean subelement names logic:
+    if (this.config.clean_subelement_names) {
       if (level === 1) {
         parentFriendlyNameToRemove = friendlyName + ' ';
-      } else if (level > 1) {
-        if (parentFriendlyNameToRemove && friendlyName.startsWith(parentFriendlyNameToRemove)) {
-          friendlyName = friendlyName.replace(new RegExp(`^${parentFriendlyNameToRemove}`), '');
-          this.debugLog(`Cleaned friendly name for level ${level}: ${friendlyName}`);
-        }
+      } else if (level > 1 && parentFriendlyNameToRemove && friendlyName.startsWith(parentFriendlyNameToRemove)) {
+        friendlyName = friendlyName.replace(new RegExp(`^${parentFriendlyNameToRemove}`), '');
+        this.debugLog(`Cleaned friendly name at level ${level}: ${friendlyName}`);
       }
     }
-    
     const normalValue = parseFloat(entityState.state) || 0;
     let combinedValue = normalValue;
     const entityUnit = entityState.attributes.unit_of_measurement || '';
     const untrackedValue = this.getUntrackedEntityValue(entityId);
-    
     if (untrackedValue !== null && !isNaN(untrackedValue)) {
       combinedValue += untrackedValue;
     }
-
     const baseValue = this.config.combine_value_untracked ? combinedValue : normalValue;
-    const percentage = (untrackedValue > 0 && baseValue > 0) 
-      ? Math.round((untrackedValue / baseValue) * 100) 
+    const percentage = (untrackedValue > 0 && baseValue > 0)
+      ? Math.round((untrackedValue / baseValue) * 100)
       : 0;
-
+    // Always include the root item.
     let treeStructure = [{
       entity_id: entityId,
       friendly_name: friendlyName,
@@ -170,79 +162,61 @@ class EnergyandPowerMonitorCard extends LitElement {
       percentage: percentage,
       untrackedValue: untrackedValue
     }];
-
-    // Process child entities.
-    selectedEntities.forEach(childEntityId => {
+    // If not showing children, do not process further levels.
+    if (!this.config.show_children) {
+      return treeStructure;
+    }
+    // Process each selected child.
+    entityState.attributes.selected_entities.forEach(childEntityId => {
+      // For sensor children, always recursively build the tree.
       if (childEntityId.startsWith('sensor.energy_power_monitor_')) {
-        if (this.config.show_children) {
-          const childTreeStructure = this._createTreeView(
-            childEntityId,
-            level + 1,
-            cleanSubelementNames ? (level === 0 ? friendlyName + ' ' : parentFriendlyNameToRemove) : ''
-          );
-          treeStructure = treeStructure.concat(childTreeStructure);
-        } else {
-          // When not showing full children, add only immediate sensor children with a fixed level.
-          const childEntityState = this.hass.states[childEntityId];
-          if (!childEntityState) return;
-          let childFriendlyName = childEntityState.attributes.friendly_name || childEntityId;
-          childFriendlyName = childFriendlyName.replace(/\s?(\b(selected entities - )?(power|leistung|energy|energie)\b)\s*$/i, '');
-          if (!childFriendlyName.trim()) {
-            childFriendlyName = childEntityId;
-          }
-          const childEntityValue = parseFloat(childEntityState.state) || 0;
-          const childEntityUnit = childEntityState.attributes.unit_of_measurement || '';
-          const childUntrackedValue = this.getUntrackedEntityValue(childEntityId);
-          const childPercentage = childUntrackedValue > 0 && childEntityValue > 0 
-            ? Math.round((childUntrackedValue / childEntityValue) * 100)
-            : 0;
-          treeStructure.push({
-            entity_id: childEntityId,
-            friendly_name: childFriendlyName,
-            value: childEntityValue,
-            unit: childEntityUnit,
-            level: 1,  // fixed indent for immediate children
-            percentage: childPercentage,
-            untrackedValue: childUntrackedValue
-          });
-        }
+        const childTreeStructure = this._createTreeView(
+          childEntityId,
+          level + 1,
+          this.config.clean_subelement_names ? (level === 0 ? friendlyName + ' ' : parentFriendlyNameToRemove) : ''
+        );
+        treeStructure = treeStructure.concat(childTreeStructure);
       } else {
-        if (this.config.show_children) {
-          const childEntityState = this.hass.states[childEntityId];
-          if (!childEntityState) return;
-          let childFriendlyName = childEntityState.attributes.friendly_name || childEntityId;
-          childFriendlyName = childFriendlyName.replace(/\s?(\b(selected entities - )?(power|leistung|energy|energie)\b)\s*$/i, '');
-          if (!childFriendlyName.trim()) {
-            childFriendlyName = childEntityId;
-          }
-          const childEntityValue = parseFloat(childEntityState.state) || 0;
-          const childEntityUnit = childEntityState.attributes.unit_of_measurement || '';
-          const childUntrackedValue = this.getUntrackedEntityValue(childEntityId);
-          const childPercentage = childUntrackedValue > 0 && childEntityValue > 0 
-            ? Math.round((childUntrackedValue / childEntityValue) * 100)
-            : 0;
-          treeStructure.push({
-            entity_id: childEntityId,
-            friendly_name: childFriendlyName,
-            value: childEntityValue,
-            unit: childEntityUnit,
-            level: level + 1,
-            percentage: childPercentage,
-            untrackedValue: childUntrackedValue
-          });
+        // For non-sensor children, include them only if show_children is true.
+        const childEntityState = this.hass.states[childEntityId];
+        if (!childEntityState) return;
+        let childFriendlyName = childEntityState.attributes.friendly_name || childEntityId;
+        childFriendlyName = childFriendlyName.replace(/ selected entities -/gi, '');
+        childFriendlyName = childFriendlyName.replace(/ (Power|Energy)$/i, '');
+        if (!childFriendlyName.trim()) {
+          childFriendlyName = childEntityId;
         }
+        if (this.config.clean_subelement_names && parentFriendlyNameToRemove && childFriendlyName.startsWith(parentFriendlyNameToRemove)) {
+          childFriendlyName = childFriendlyName.replace(new RegExp(`^${parentFriendlyNameToRemove}`, 'i'), '');
+          this.debugLog(`Cleaned child friendly name: ${childFriendlyName}`);
+        }
+        const childEntityValue = parseFloat(childEntityState.state) || 0;
+        const childEntityUnit = childEntityState.attributes.unit_of_measurement || '';
+        const childUntrackedValue = this.getUntrackedEntityValue(childEntityId);
+        const childPercentage = (childUntrackedValue > 0 && childEntityValue > 0)
+          ? Math.round((childUntrackedValue / childEntityValue) * 100)
+          : 0;
+        treeStructure.push({
+          entity_id: childEntityId,
+          friendly_name: childFriendlyName,
+          value: childEntityValue,
+          unit: childEntityUnit,
+          level: level + 1,
+          percentage: childPercentage,
+          untrackedValue: childUntrackedValue
+        });
+        this.debugLog(`Added child: ${childFriendlyName} at level ${level + 1}`);
       }
     });
     return treeStructure;
   }
 
   splitAtNearestSpace(text, maxLineLength = 15) {
-    this.debugLog(`Splitting text into lines: ${text}`);
+    this.debugLog(`Splitting text: ${text}`);
     const words = text.split(' ');
     let lines = [];
     let currentLine = '';
-
-    words.forEach((word) => {
+    words.forEach(word => {
       if ((currentLine + word).length > maxLineLength) {
         lines.push(currentLine.trim());
         currentLine = word + ' ';
@@ -250,27 +224,21 @@ class EnergyandPowerMonitorCard extends LitElement {
         currentLine += word + ' ';
       }
     });
-
     if (currentLine.length) {
       lines.push(currentLine.trim());
     }
-
-    this.debugLog(`Split text into lines: ${JSON.stringify(lines)}`);
     return lines;
   }
 
   _getBorderColor(percentage, untrackedValue) {
     const trackedColor = this.config.tracked_color || "#3CB371";
     const untrackedColor = this.config.untracked_color || "#808080";
-
     if (untrackedValue === null || isNaN(untrackedValue) || !this.config.show_untracked_values) {
       return `conic-gradient(from 0deg, ${trackedColor}, ${trackedColor}) border-box`;
     }
-
     if (percentage > 0 && this.config.show_untracked_values) {
       return `conic-gradient(from 0deg, ${untrackedColor} 0% ${percentage}%, ${trackedColor} ${percentage}% 100%) border-box`;
     }
-
     return `conic-gradient(from 0deg, ${trackedColor}, ${trackedColor}) border-box`;
   }
 
@@ -285,31 +253,24 @@ class EnergyandPowerMonitorCard extends LitElement {
       }
     });
   }
-      
-  _renderTreeView(treeStructure) {
-    const renderedEntities = new Set();
 
+  _renderTreeView(treeStructure) {
+    // Use a larger indent per level (30px)
     const renderItems = (items) => {
       return items.map(item => {
-        if (renderedEntities.has(item.entity_id)) {
-          return '';
-        }
-        renderedEntities.add(item.entity_id);
-
+        // Each item gets a data-level attribute (for vertical lines)
+        const marginLeft = item.level * 30;
         const roomState = this.hass.states[item.entity_id];
-        const showIcon = this.config.show_icon && roomState && roomState.attributes.icon; 
-
+        const showIcon = this.config.show_icon && roomState && roomState.attributes.icon;
         const normalDisplay = item.value !== null ? `${item.value} ${item.unit}` : '';
         const untrackedDisplay = this.config.show_untracked_values && item.untrackedValue !== null
           ? `U: ${item.untrackedValue} ${item.unit}`
           : '';
-        const friendlyName = item.friendly_name || item.entity_id;
-        const friendlyNameDisplayInside = this.splitAtNearestSpace(friendlyName).map(line => html`<div class="friendly-name-line">${line}</div>`);
-
-        // Render based on room name position.
+        // For room name display inside the circle, allow multiple lines.
+        const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
         if (this.config.room_name_position === 'below' && this.config.show_name) {
           return html`
-            <div class="tree-item" data-level="${item.level}" style="margin-left: ${item.level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
+            <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
               <div class="circle-wrapper">
                 <div class="circle" data-entity-id="${item.entity_id}">
                   <div class="circle-content">
@@ -323,13 +284,13 @@ class EnergyandPowerMonitorCard extends LitElement {
                     ${untrackedDisplay ? html`<div class="untracked-value">${untrackedDisplay}</div>` : ''}
                   </div>
                 </div>
-                <div class="room-name">${friendlyName}</div>
+                <div class="room-name">${item.friendly_name}</div>
               </div>
             </div>
           `;
         } else {
           return html`
-            <div class="tree-item" data-level="${item.level}" style="margin-left: ${item.level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
+            <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
               <div class="circle" data-entity-id="${item.entity_id}">
                 <div class="circle-content">
                   ${showIcon ? html`
@@ -350,7 +311,6 @@ class EnergyandPowerMonitorCard extends LitElement {
         }
       });
     };
-
     return renderItems(treeStructure);
   }
 
@@ -370,13 +330,11 @@ class EnergyandPowerMonitorCard extends LitElement {
   _handleEntityClick(entityId) {
     if (this.isClickHandling) return;
     this.isClickHandling = true;
-
     const event = new Event('hass-more-info', {
       composed: true,
     });
     event.detail = { entityId: entityId };
     this.dispatchEvent(event);
-
     setTimeout(() => {
       this.isClickHandling = false;
     }, 100);
@@ -386,14 +344,11 @@ class EnergyandPowerMonitorCard extends LitElement {
   render() {
     const selectedRoom = this.config.room;
     const roomState = selectedRoom ? this.hass.states[selectedRoom] : null;
-
     if (!roomState) {
       return html`<ha-card><div>No room selected.</div></ha-card>`;
     }
-
     const treeStructure = this._createTreeView(selectedRoom);
     this._setCircleBackgrounds(treeStructure);
-
     return html`
       <ha-card style="${this._getStyleVariables()}">
         <div class="container">
@@ -463,11 +418,11 @@ class EnergyandPowerMonitorCard extends LitElement {
         position: relative;
         margin-bottom: 4px;
       }
-      /* Vertical line for hierarchy */
+      /* Vertical line for hierarchy (for items with data-level > 0) */
       .tree-item[data-level]:not([data-level="0"])::before {
         content: "";
         position: absolute;
-        left: -10px;
+        left: -15px;
         top: 0;
         bottom: 0;
         border-left: 2px solid var(--divider-color, #e0e0e0);
@@ -490,17 +445,17 @@ class EnergyandPowerMonitorCard extends LitElement {
         margin-top: 10px;
         text-align: left;
       }
-      .untracked-value {
-        text-align: center;
-        font-size: var(--untracked-value-size, 10.5px);
-        line-height: 1.1;
-        color: var(--untracked-label-color, grey);
-      }
       .entity-value {
         text-align: center;
         font-size: var(--tracked-value-size, 10.5px);
         line-height: 1.1;
         color: white;
+      }
+      .untracked-value {
+        text-align: center;
+        font-size: var(--untracked-value-size, 10.5px);
+        line-height: 1.1;
+        color: var(--untracked-label-color, grey);
       }
     `;
   }
@@ -527,7 +482,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       show_children: config.show_children !== false,
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
-      room_name_position: config.room_name_position || "below",  // default "below"
+      room_name_position: config.room_name_position || "below",
       tracked_value_size: config.tracked_value_size || "10.5px",
       untracked_value_size: config.untracked_value_size || "10.5px",
       room_name_size: config.room_name_size || "10.5px",
@@ -546,7 +501,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     const entities = await this.hass.callWS({
       type: 'config/entity_registry/list'
     });
-
     this.rooms = entities
       .filter(entity =>
         entity.entity_id.startsWith('sensor.energy_power_monitor_') &&
@@ -555,7 +509,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       )
       .map(entity => {
         let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
-        friendlyName = friendlyName.replace(/ selected entities -/gi, '').replace(/ (Power|Energy)$/i, '');
+        friendlyName = friendlyName.replace(/ selected entities -/gi, '');
+        friendlyName = friendlyName.replace(/ (Power|Energy)$/i, '');
         if (!friendlyName.trim()) {
           friendlyName = entity.entity_id;
         }
@@ -565,8 +520,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         };
       })
       .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
-
-    // If no room is set, default to the first available room.
     if (!this._config.room && this.rooms.length > 0) {
       this._config.room = this.rooms[0].entity_id;
       this.fireConfigChanged();
@@ -582,12 +535,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 
   _toggleOption(ev) {
     const option = ev.target.name;
-    let value;
-    if (ev.target.type === 'checkbox') {
-      value = ev.target.checked;
-    } else {
-      value = ev.target.value;
-    }
+    let value = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
     this._config = { ...this._config, [option]: value };
     this.fireConfigChanged();
     this.requestUpdate();
@@ -603,22 +551,18 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
-    // Dropdown options for font sizes (8px to 20px in 0.5px steps)
     const fontSizeOptions = [];
     for (let i = 8; i <= 20; i += 0.5) {
       fontSizeOptions.push(i.toFixed(1) + "px");
     }
-    // Dropdown options for circle size (50px to 200px in 5px steps)
     const circleSizeOptions = [];
     for (let i = 50; i <= 200; i += 5) {
       circleSizeOptions.push(i + "px");
     }
-    // Dropdown options for icon size (12px to 50px in 1px steps)
     const iconSizeOptions = [];
     for (let i = 12; i <= 50; i += 1) {
       iconSizeOptions.push(i + "px");
     }
-    
     const selectedRoom = this._config.room || "";
     return html`
       <div>
