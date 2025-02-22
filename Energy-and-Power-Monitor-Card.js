@@ -48,6 +48,8 @@ class EnergyandPowerMonitorCard extends LitElement {
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
+      // New option: color the untracked label with untracked_color?
+      color_untracked_label: config.color_untracked_label !== false,
       room: config.room, // may be undefined initially
       ...config,
     };
@@ -85,7 +87,6 @@ class EnergyandPowerMonitorCard extends LitElement {
         let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
         friendlyName = friendlyName.replace(/ selected entities -/gi, '');
         friendlyName = friendlyName.replace(/ (Power|Energy)$/i, '');
-        // Fallback if cleaning empties the name:
         if (!friendlyName.trim()) {
           friendlyName = entity.entity_id;
         }
@@ -115,6 +116,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     return null;
   }
 
+  // Builds the tree structure.
   _createTreeView(entityId, level = 0, parentFriendlyNameToRemove = '') {
     this.debugLog(`Creating tree view for entity: ${entityId} at level ${level}`);
     const entityState = this.hass.states[entityId];
@@ -169,15 +171,42 @@ class EnergyandPowerMonitorCard extends LitElement {
       untrackedValue: untrackedValue
     }];
 
-    // Process child entities (only if show_children is true)
+    // Process child entities.
     selectedEntities.forEach(childEntityId => {
       if (childEntityId.startsWith('sensor.energy_power_monitor_')) {
-        const childTreeStructure = this._createTreeView(
-          childEntityId,
-          level + 1,
-          cleanSubelementNames ? (level === 0 ? friendlyName + ' ' : parentFriendlyNameToRemove) : ''
-        );
-        treeStructure = treeStructure.concat(childTreeStructure);
+        if (this.config.show_children) {
+          const childTreeStructure = this._createTreeView(
+            childEntityId,
+            level + 1,
+            cleanSubelementNames ? (level === 0 ? friendlyName + ' ' : parentFriendlyNameToRemove) : ''
+          );
+          treeStructure = treeStructure.concat(childTreeStructure);
+        } else {
+          // When not showing full children, add only immediate children at a fixed indent.
+          const childEntityState = this.hass.states[childEntityId];
+          if (!childEntityState) return;
+          let childFriendlyName = childEntityState.attributes.friendly_name || childEntityId;
+          childFriendlyName = childFriendlyName.replace(/\s?(\b(selected entities - )?(power|leistung|energy|energie)\b)\s*$/i, '');
+          if (!childFriendlyName.trim()) {
+            childFriendlyName = childEntityId;
+          }
+          const childEntityValue = parseFloat(childEntityState.state) || 0;
+          const childEntityUnit = childEntityState.attributes.unit_of_measurement || '';
+          const childUntrackedValue = this.getUntrackedEntityValue(childEntityId);
+          const childPercentage = childUntrackedValue > 0 && childEntityValue > 0 
+            ? Math.round((childUntrackedValue / childEntityValue) * 100)
+            : 0;
+          // Force level 1 indentation relative to the selected room.
+          treeStructure.push({
+            entity_id: childEntityId,
+            friendly_name: childFriendlyName,
+            value: childEntityValue,
+            unit: childEntityUnit,
+            level: 1,
+            percentage: childPercentage,
+            untrackedValue: childUntrackedValue
+          });
+        }
       } else {
         if (this.config.show_children) {
           const childEntityState = this.hass.states[childEntityId];
@@ -190,7 +219,7 @@ class EnergyandPowerMonitorCard extends LitElement {
           const childEntityValue = parseFloat(childEntityState.state) || 0;
           const childEntityUnit = childEntityState.attributes.unit_of_measurement || '';
           const childUntrackedValue = this.getUntrackedEntityValue(childEntityId);
-          const percentage = childUntrackedValue > 0 && childEntityValue > 0 
+          const childPercentage = childUntrackedValue > 0 && childEntityValue > 0 
             ? Math.round((childUntrackedValue / childEntityValue) * 100)
             : 0;
           treeStructure.push({
@@ -199,7 +228,7 @@ class EnergyandPowerMonitorCard extends LitElement {
             value: childEntityValue,
             unit: childEntityUnit,
             level: level + 1,
-            percentage: percentage,
+            percentage: childPercentage,
             untrackedValue: childUntrackedValue
           });
         }
@@ -247,7 +276,6 @@ class EnergyandPowerMonitorCard extends LitElement {
   }
 
   _setCircleBackgrounds(treeStructure) {
-    this.debugLog(`_setCircleBackgrounds function called`);
     const circles = this.renderRoot.querySelectorAll('.circle');
     circles.forEach(circle => {
       const entityId = circle.getAttribute('data-entity-id');
@@ -260,7 +288,6 @@ class EnergyandPowerMonitorCard extends LitElement {
   }
       
   _renderTreeView(treeStructure) {
-    this.debugLog('Rendering tree view...');
     const renderedEntities = new Set();
 
     const renderItems = (items, level = 0) => {
@@ -273,7 +300,6 @@ class EnergyandPowerMonitorCard extends LitElement {
         const roomState = this.hass.states[item.entity_id];
         const showIcon = this.config.show_icon && roomState && roomState.attributes.icon; 
 
-        // Use the value and unit computed in the treeStructure
         const normalDisplay = item.value !== null ? `${item.value} ${item.unit}` : '';
         const untrackedDisplay = this.config.show_untracked_values && item.untrackedValue !== null
           ? `U: ${item.untrackedValue} ${item.unit}`
@@ -281,19 +307,18 @@ class EnergyandPowerMonitorCard extends LitElement {
         const friendlyName = item.friendly_name || item.entity_id;
         const friendlyNameDisplayInside = this.splitAtNearestSpace(friendlyName).map(line => html`<div class="friendly-name-line">${line}</div>`);
 
-        // Get children from the current entity’s state (if available)
+        // Determine if there are child entities from the state (only if show_children is true)
         const childEntities = (roomState && roomState.attributes.selected_entities 
           ? roomState.attributes.selected_entities.filter(childEntityId => 
               !childEntityId.endsWith('_untracked_power') && 
               !childEntityId.endsWith('_untracked_energy')
             )
           : []);
-        // Only render children if show_children is true
         const hasChildren = childEntities.length > 0 && this.config.show_children;
         
-        return html`
-          <div class="tree-item" style="padding-left: ${level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
-            ${this.config.room_name_position === 'below' && this.config.show_name ? html`
+        if (this.config.room_name_position === 'below' && this.config.show_name) {
+          return html`
+            <div class="tree-item" style="padding-left: ${item.level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
               <div class="circle-wrapper">
                 <div class="circle" data-entity-id="${item.entity_id}">
                   <div class="circle-content">
@@ -309,7 +334,11 @@ class EnergyandPowerMonitorCard extends LitElement {
                 </div>
                 <div class="room-name">${friendlyName}</div>
               </div>
-            ` : html`
+            </div>
+          `;
+        } else {
+          return html`
+            <div class="tree-item" style="padding-left: ${item.level * 20}px;" @click="${() => this._handleEntityClick(item.entity_id)}">
               <div class="circle" data-entity-id="${item.entity_id}">
                 <div class="circle-content">
                   ${showIcon ? html`
@@ -325,20 +354,9 @@ class EnergyandPowerMonitorCard extends LitElement {
                   ${untrackedDisplay ? html`<div class="untracked-value">${untrackedDisplay}</div>` : ''}
                 </div>
               </div>
-            `}
-            ${hasChildren ? html`
-              <div class="children">
-                ${renderItems(
-                  childEntities.map(childEntityId => {
-                    const childItem = treeStructure.find(child => child.entity_id === childEntityId);
-                    return childItem;
-                  }).filter(item => item !== undefined),
-                  level + 1
-                )}
-              </div>
-            ` : ''}
-          </div>
-        `;
+            </div>
+          `;
+        }
       });
     };
 
@@ -354,6 +372,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       --circle-size: ${this.config.circle_size};
       --circle-tracked-color: ${this.config.tracked_color};
       --circle-untracked-color: ${this.config.untracked_color};
+      --untracked-label-color: ${this.config.color_untracked_label ? this.config.untracked_color : 'grey'};
     `;
   }
 
@@ -489,7 +508,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         text-align: center;
         font-size: var(--untracked-value-size, 10.5px);
         line-height: 1.1;
-        color: grey;
+        color: var(--untracked-label-color, grey);
       }
     `;
   }
@@ -522,6 +541,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
+      // New option:
+      color_untracked_label: config.color_untracked_label !== false,
       room: config.room,
       ...config,
     };
@@ -650,6 +671,10 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       <div>
         <label for="untracked_color">Untracked Color:</label>
         <input type="color" id="untracked_color" name="untracked_color" value="${this._config.untracked_color}" @change="${this._toggleOption}">
+      </div>
+      <div>
+        <label for="color_untracked_label">Color Untracked Label:</label>
+        <input type="checkbox" id="color_untracked_label" name="color_untracked_label" .checked="${this._config.color_untracked_label !== false}" @change="${this._toggleOption}">
       </div>
       <div>
         <label for="room_name_position">Room Name Position:</label>
