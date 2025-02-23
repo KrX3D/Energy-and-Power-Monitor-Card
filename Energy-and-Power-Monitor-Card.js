@@ -9,7 +9,7 @@ window.customCards.push({
   type: 'energy-power-monitor-card',
   name: 'Energy and Power Monitor',
   description: "Displays power states for selected rooms.",
-  preview: false,
+  preview: true,
 });
 
 class EnergyandPowerMonitorCard extends LitElement {
