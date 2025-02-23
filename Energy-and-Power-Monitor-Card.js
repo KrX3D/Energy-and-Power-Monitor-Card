@@ -583,7 +583,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         }
         .option-group h3 {
           margin: 0 0 8px 0;
-          font-size: 13px;
+          font-size: 12px;
         }
         .option {
           display: flex;
@@ -591,17 +591,21 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           margin-bottom: 6px;
         }
         .option label {
-          flex: 0 0 210px; /* 5px smaller than previous 215px */
-          font-size: 11px;
+          flex: 0 0 200px; /* 10px smaller than previous */
+          font-size: 10px;
         }
-        .option input[type="checkbox"],
+        .option input[type="checkbox"] {
+          margin-left: auto; /* Align checkbox to the right */
+          width: 14px;
+          height: 14px;
+        }
         .option input[type="color"],
         .option input[type="text"],
         .option select {
           flex: 1;
-          font-size: 11px;
-          padding: 2px;
-          margin-left: 0; /* Align flush under label */
+          font-size: 10px;
+          padding: 1px;
+          margin-left: 0;
         }
       </style>
       <div class="option-group">
