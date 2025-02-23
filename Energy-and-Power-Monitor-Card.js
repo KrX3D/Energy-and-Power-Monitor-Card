@@ -32,12 +32,12 @@ class EnergyandPowerMonitorCard extends LitElement {
 
   setConfig(config) {
     this.debugLog('Setting config...');
+    // Note: The "clean_subelement_names" option is removed.
     this.config = {
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
-      // Removed clean_subelement_names entirely.
       show_children: config.show_children !== false,
       // Style defaults:
       tracked_color: config.tracked_color || "#3CB371",
@@ -85,7 +85,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       )
       .map(entity => {
         let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
-        // Always remove these strings from the room name:
+        // Always remove these strings:
         friendlyName = friendlyName.replace(/ selected entities -/gi, '')
                                    .replace(/ (Power|Energy)$/gi, '')
                                    .trim();
@@ -118,10 +118,11 @@ class EnergyandPowerMonitorCard extends LitElement {
   }
 
   // Build a flat tree structure from the selected room.
-  // Level 0 (the selected room) is left intact.
-  // For all children (level ≥ 1), if the friendly name starts with the base (selected room's name + space), remove that prefix.
-  // Then, for each substring specified in remove_strings, if the friendly name starts with that substring (followed by a space)
-  // and the name is longer than that substring, remove it.
+  // Level 0 (the selected room) is left untouched.
+  // For children (level ≥ 1): if the friendly name starts with the main room's name plus a space,
+  // remove that prefix. Then, for each substring specified in remove_strings,
+  // if the friendly name starts with that substring followed by a space and extra text,
+  // remove it.
   _createTreeView(entityId, level = 0, baseName = null) {
     const entityState = this.hass.states[entityId];
     if (!entityState || !entityState.attributes.selected_entities) {
@@ -129,24 +130,24 @@ class EnergyandPowerMonitorCard extends LitElement {
       return [];
     }
     let originalFriendlyName = entityState.attributes.friendly_name || entityId;
-    // Always remove the common strings:
+    // Always remove these common strings:
     let friendlyName = originalFriendlyName.replace(/ selected entities -/gi, '')
                                             .replace(/ (Power|Energy)$/gi, '')
                                             .trim();
     if (level === 0) {
-      // For the main room, keep its name as-is and use it as the base.
+      // For the main room, keep its name as-is and use it as base.
       baseName = friendlyName;
     } else {
-      // For children, if their name starts with the baseName followed by a space, remove that prefix.
+      // For children, if name starts with baseName plus a space and is longer, remove it.
       if (baseName && friendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && friendlyName.length > baseName.length) {
         friendlyName = friendlyName.substring(baseName.length).trim();
       }
     }
-    // Now, apply the removal of additional substrings (if provided).
+    // Now, apply additional removals from remove_strings.
     if (this.config.remove_strings) {
       const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
       substrings.forEach(sub => {
-        // Only remove if the name starts with sub followed by a space and the name is longer than sub.
+        // Only remove if the name starts with the substring followed by a space and extra text.
         if (friendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && friendlyName.length > sub.length) {
           friendlyName = friendlyName.substring(sub.length).trim();
         }
@@ -172,11 +173,9 @@ class EnergyandPowerMonitorCard extends LitElement {
       percentage: percentage,
       untrackedValue: untrackedValue
     }];
-    // If "Show Children" is not enabled, return only the root.
     if (!this.config.show_children) {
       return treeStructure;
     }
-    // Process each child.
     entityState.attributes.selected_entities.forEach(childEntityId => {
       if (childEntityId.startsWith('sensor.energy_power_monitor_')) {
         const childTree = this._createTreeView(childEntityId, level + 1, baseName);
@@ -188,7 +187,7 @@ class EnergyandPowerMonitorCard extends LitElement {
                                   .replace(/ selected entities -/gi, '')
                                   .replace(/ (Power|Energy)$/gi, '')
                                   .trim();
-        if (level >= 0 && baseName && childFriendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && childFriendlyName.length > baseName.length) {
+        if (baseName && childFriendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && childFriendlyName.length > baseName.length) {
           childFriendlyName = childFriendlyName.substring(baseName.length).trim();
         }
         if (this.config.remove_strings) {
@@ -489,7 +488,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
-      // Removed clean_subelement_names option
       show_children: config.show_children !== false,
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
@@ -565,118 +563,148 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
+    // Options for font sizes (8px to 20px in 0.5px steps)
     const fontSizeOptions = [];
     for (let i = 8; i <= 20; i += 0.5) {
       fontSizeOptions.push(i.toFixed(1) + "px");
     }
+    // Options for circle size (50px to 200px in 5px steps)
     const circleSizeOptions = [];
     for (let i = 50; i <= 200; i += 5) {
       circleSizeOptions.push(i + "px");
     }
+    // Options for icon size (12px to 50px in 1px steps)
     const iconSizeOptions = [];
     for (let i = 12; i <= 50; i += 1) {
       iconSizeOptions.push(i + "px");
     }
     const selectedRoom = this._config.room || "";
     return html`
-      <div>
-        <label for="room">Select Room:</label>
-        <select id="room" @change="${this._roomChanged}">
-          ${this.rooms.map(room => html`
-            <option value="${room.entity_id}" ?selected="${room.entity_id === selectedRoom}">
-              ${room.friendly_name}
-            </option>
-          `)}
-        </select>
+      <style>
+        .option-group {
+          margin-bottom: 16px;
+          border: 1px solid var(--divider-color, #e0e0e0);
+          padding: 8px;
+          border-radius: 4px;
+        }
+        .option-group h3 {
+          margin: 0 0 8px 0;
+          font-size: 14px;
+        }
+        .option {
+          display: flex;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        .option label {
+          flex: 0 0 220px;
+          font-size: 12px;
+        }
+        .option input[type="checkbox"],
+        .option input[type="color"],
+        .option input[type="text"],
+        .option select {
+          flex: 1;
+        }
+      </style>
+      <div class="option-group">
+        <h3>General Options</h3>
+        <div class="option">
+          <label for="room">Select Room:</label>
+          <select id="room" @change="${this._roomChanged}">
+            ${this.rooms.map(room => html`
+              <option value="${room.entity_id}" ?selected="${room.entity_id === selectedRoom}">
+                ${room.friendly_name}
+              </option>
+            `)}
+          </select>
+        </div>
+        <div class="option">
+          <label for="show_name">Show Name:</label>
+          <input type="checkbox" id="show_name" name="show_name" .checked="${this._config.show_name !== false}" @change="${this._toggleOption}">
+        </div>
+        <div class="option">
+          <label for="show_icon">Show Icon:</label>
+          <input type="checkbox" id="show_icon" name="show_icon" .checked="${this._config.show_icon !== false}" @change="${this._toggleOption}">
+        </div>
+        <div class="option">
+          <label for="show_untracked_values">Show Untracked Values:</label>
+          <input type="checkbox" id="show_untracked_values" name="show_untracked_values" .checked="${this._config.show_untracked_values !== false}" @change="${this._toggleOption}">
+        </div>
+        <div class="option">
+          <label for="combine_value_untracked">Combine Untracked Values:</label>
+          <input type="checkbox" id="combine_value_untracked" name="combine_value_untracked" .checked="${this._config.combine_value_untracked !== false}" @change="${this._toggleOption}">
+        </div>
+        <div class="option">
+          <label for="show_children">Show Children:</label>
+          <input type="checkbox" id="show_children" name="show_children" .checked="${this._config.show_children !== false}" @change="${this._toggleOption}">
+        </div>
       </div>
-      <div>
-        <label for="show_name">Show Name:</label>
-        <input type="checkbox" id="show_name" name="show_name" .checked="${this._config.show_name !== false}" @change="${this._toggleOption}">
-      </div>
-      <div>
-        <label for="show_icon">Show Icon:</label>
-        <input type="checkbox" id="show_icon" name="show_icon" .checked="${this._config.show_icon !== false}" @change="${this._toggleOption}">
-      </div>
-      <div>
-        <label for="show_untracked_values">Show Untracked Values:</label>
-        <input type="checkbox" id="show_untracked_values" name="show_untracked_values" .checked="${this._config.show_untracked_values !== false}" @change="${this._toggleOption}">
-      </div>
-      <div>
-        <label for="combine_value_untracked">Combine Untracked Values:</label>
-        <input type="checkbox" id="combine_value_untracked" name="combine_value_untracked" .checked="${this._config.combine_value_untracked !== false}" @change="${this._toggleOption}">
-      </div>
-      <div>
-        <label for="clean_subelement_names">Clean Subelement Names:</label>
-        <!-- This option is removed from the card but kept here for backward compatibility if needed -->
-        <input type="checkbox" id="clean_subelement_names" name="clean_subelement_names" disabled value="false">
-      </div>
-      <div>
-        <label for="show_children">Show Children:</label>
-        <input type="checkbox" id="show_children" name="show_children" .checked="${this._config.show_children !== false}" @change="${this._toggleOption}">
-      </div>
-      <!-- Style Options -->
-      <div>
-        <label for="tracked_color">Tracked Color:</label>
-        <input type="color" id="tracked_color" name="tracked_color" value="${this._config.tracked_color}" @change="${this._toggleOption}">
-      </div>
-      <div>
-        <label for="untracked_color">Untracked Color:</label>
-        <input type="color" id="untracked_color" name="untracked_color" value="${this._config.untracked_color}" @change="${this._toggleOption}">
-      </div>
-      <div>
-        <label for="color_untracked_label">Color Untracked Label:</label>
-        <input type="checkbox" id="color_untracked_label" name="color_untracked_label" .checked="${this._config.color_untracked_label === true}" @change="${this._toggleOption}">
-      </div>
-      <div>
-        <label for="room_name_position">Room Name Position:</label>
-        <select id="room_name_position" name="room_name_position" @change="${this._toggleOption}">
-          <option value="inside" ?selected="${this._config.room_name_position === 'inside'}">Inside</option>
-          <option value="below" ?selected="${this._config.room_name_position === 'below'}">Below</option>
-        </select>
-      </div>
-      <div>
-        <label for="remove_strings" title="Enter substrings (e.g., '1 OG; Living') to remove from the beginning of the name if present and followed by a space">Remove strings from name (separated by ;):</label>
-        <input type="text" id="remove_strings" name="remove_strings" .value="${this._config.remove_strings}" @change="${this._toggleOption}">
-      </div>
-      <div>
-        <label for="tracked_value_size">Tracked Value Size:</label>
-        <select id="tracked_value_size" name="tracked_value_size" @change="${this._toggleOption}">
-          ${fontSizeOptions.map(size => html`
-            <option value="${size}" ?selected="${this._config.tracked_value_size === size}">${size}</option>
-          `)}
-        </select>
-      </div>
-      <div>
-        <label for="untracked_value_size">Untracked Value Size:</label>
-        <select id="untracked_value_size" name="untracked_value_size" @change="${this._toggleOption}">
-          ${fontSizeOptions.map(size => html`
-            <option value="${size}" ?selected="${this._config.untracked_value_size === size}">${size}</option>
-          `)}
-        </select>
-      </div>
-      <div>
-        <label for="room_name_size">Room Name Size:</label>
-        <select id="room_name_size" name="room_name_size" @change="${this._toggleOption}">
-          ${fontSizeOptions.map(size => html`
-            <option value="${size}" ?selected="${this._config.room_name_size === size}">${size}</option>
-          `)}
-        </select>
-      </div>
-      <div>
-        <label for="icon_size">Icon Size:</label>
-        <select id="icon_size" name="icon_size" @change="${this._toggleOption}">
-          ${iconSizeOptions.map(size => html`
-            <option value="${size}" ?selected="${this._config.icon_size === size}">${size}</option>
-          `)}
-        </select>
-      </div>
-      <div>
-        <label for="circle_size">Circle Size:</label>
-        <select id="circle_size" name="circle_size" @change="${this._toggleOption}">
-          ${circleSizeOptions.map(size => html`
-            <option value="${size}" ?selected="${this._config.circle_size === size}">${size}</option>
-          `)}
-        </select>
+      <div class="option-group">
+        <h3>Style Options</h3>
+        <div class="option">
+          <label for="tracked_color">Tracked Color:</label>
+          <input type="color" id="tracked_color" name="tracked_color" value="${this._config.tracked_color}" @change="${this._toggleOption}">
+        </div>
+        <div class="option">
+          <label for="untracked_color">Untracked Color:</label>
+          <input type="color" id="untracked_color" name="untracked_color" value="${this._config.untracked_color}" @change="${this._toggleOption}">
+        </div>
+        <div class="option">
+          <label for="color_untracked_label">Color Untracked Label:</label>
+          <input type="checkbox" id="color_untracked_label" name="color_untracked_label" .checked="${this._config.color_untracked_label === true}" @change="${this._toggleOption}">
+        </div>
+        <div class="option">
+          <label for="room_name_position">Room Name Position:</label>
+          <select id="room_name_position" name="room_name_position" @change="${this._toggleOption}">
+            <option value="inside" ?selected="${this._config.room_name_position === 'inside'}">Inside</option>
+            <option value="below" ?selected="${this._config.room_name_position === 'below'}">Below</option>
+          </select>
+        </div>
+        <div class="option">
+          <label for="remove_strings" title="Enter substrings (e.g., '1 OG; Living') to remove from the beginning of the name if present and followed by a space">Remove strings from name (separated by ;):</label>
+          <input type="text" id="remove_strings" name="remove_strings" .value="${this._config.remove_strings}" @change="${this._toggleOption}">
+        </div>
+        <div class="option">
+          <label for="tracked_value_size">Tracked Value Size:</label>
+          <select id="tracked_value_size" name="tracked_value_size" @change="${this._toggleOption}">
+            ${fontSizeOptions.map(size => html`
+              <option value="${size}" ?selected="${this._config.tracked_value_size === size}">${size}</option>
+            `)}
+          </select>
+        </div>
+        <div class="option">
+          <label for="untracked_value_size">Untracked Value Size:</label>
+          <select id="untracked_value_size" name="untracked_value_size" @change="${this._toggleOption}">
+            ${fontSizeOptions.map(size => html`
+              <option value="${size}" ?selected="${this._config.untracked_value_size === size}">${size}</option>
+            `)}
+          </select>
+        </div>
+        <div class="option">
+          <label for="room_name_size">Room Name Size:</label>
+          <select id="room_name_size" name="room_name_size" @change="${this._toggleOption}">
+            ${fontSizeOptions.map(size => html`
+              <option value="${size}" ?selected="${this._config.room_name_size === size}">${size}</option>
+            `)}
+          </select>
+        </div>
+        <div class="option">
+          <label for="icon_size">Icon Size:</label>
+          <select id="icon_size" name="icon_size" @change="${this._toggleOption}">
+            ${iconSizeOptions.map(size => html`
+              <option value="${size}" ?selected="${this._config.icon_size === size}">${size}</option>
+            `)}
+          </select>
+        </div>
+        <div class="option">
+          <label for="circle_size">Circle Size:</label>
+          <select id="circle_size" name="circle_size" @change="${this._toggleOption}">
+            ${circleSizeOptions.map(size => html`
+              <option value="${size}" ?selected="${this._config.circle_size === size}">${size}</option>
+            `)}
+          </select>
+        </div>
       </div>
     `;
   }
