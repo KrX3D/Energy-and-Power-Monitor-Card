@@ -32,7 +32,7 @@ class EnergyandPowerMonitorCard extends LitElement {
 
   setConfig(config) {
     this.debugLog('Setting config...');
-    // Note: The "clean_subelement_names" option is removed.
+    // "clean_subelement_names" option is removed.
     this.config = {
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
@@ -85,7 +85,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       )
       .map(entity => {
         let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
-        // Always remove these strings:
+        // Always remove these common strings:
         friendlyName = friendlyName.replace(/ selected entities -/gi, '')
                                    .replace(/ (Power|Energy)$/gi, '')
                                    .trim();
@@ -118,11 +118,9 @@ class EnergyandPowerMonitorCard extends LitElement {
   }
 
   // Build a flat tree structure from the selected room.
-  // Level 0 (the selected room) is left untouched.
-  // For children (level ≥ 1): if the friendly name starts with the main room's name plus a space,
-  // remove that prefix. Then, for each substring specified in remove_strings,
-  // if the friendly name starts with that substring followed by a space and extra text,
-  // remove it.
+  // Level 0 (the selected room) is left unchanged.
+  // For children (level ≥ 1), if the friendly name starts with the main room's name (baseName) plus a space, remove that prefix.
+  // Then, if remove_strings is provided, iterate over the substrings and remove the first matching prefix (if present).
   _createTreeView(entityId, level = 0, baseName = null) {
     const entityState = this.hass.states[entityId];
     if (!entityState || !entityState.attributes.selected_entities) {
@@ -140,15 +138,17 @@ class EnergyandPowerMonitorCard extends LitElement {
       if (baseName && friendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && friendlyName.length > baseName.length) {
         friendlyName = friendlyName.substring(baseName.length).trim();
       }
-    }
-    // Now, apply additional removals from remove_strings.
-    if (this.config.remove_strings) {
-      const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
-      substrings.forEach(sub => {
-        if (friendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && friendlyName.length > sub.length) {
-          friendlyName = friendlyName.substring(sub.length).trim();
+      // Now, apply additional removals from remove_strings (only remove one prefix)
+      if (this.config.remove_strings) {
+        const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
+        for (let i = 0; i < substrings.length; i++) {
+          let sub = substrings[i];
+          if (friendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && friendlyName.length > sub.length) {
+            friendlyName = friendlyName.substring(sub.length).trim();
+            break;
+          }
         }
-      });
+      }
     }
     const normalValue = parseFloat(entityState.state) || 0;
     let combinedValue = normalValue;
@@ -157,14 +157,15 @@ class EnergyandPowerMonitorCard extends LitElement {
     if (untrackedValue !== null && !isNaN(untrackedValue)) {
       combinedValue += untrackedValue;
     }
-    const baseValue = this.config.combine_value_untracked ? combinedValue : normalValue;
-    const percentage = (untrackedValue > 0 && baseValue > 0)
-      ? Math.round((untrackedValue / baseValue) * 100)
+    // Use combined value if combine_value_untracked is enabled.
+    const displayValue = this.config.combine_value_untracked ? combinedValue : normalValue;
+    const percentage = (untrackedValue > 0 && (this.config.combine_value_untracked ? combinedValue : normalValue) > 0)
+      ? Math.round((untrackedValue / (this.config.combine_value_untracked ? combinedValue : normalValue)) * 100)
       : 0;
     let treeStructure = [{
       entity_id: entityId,
       friendly_name: friendlyName,
-      value: normalValue,
+      value: displayValue,
       unit: entityUnit,
       level: level,
       percentage: percentage,
@@ -189,11 +190,13 @@ class EnergyandPowerMonitorCard extends LitElement {
         }
         if (this.config.remove_strings) {
           const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
-          substrings.forEach(sub => {
+          for (let i = 0; i < substrings.length; i++) {
+            let sub = substrings[i];
             if (childFriendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && childFriendlyName.length > sub.length) {
               childFriendlyName = childFriendlyName.substring(sub.length).trim();
+              break;
             }
-          });
+          }
         }
         if (!childFriendlyName.trim()) {
           childFriendlyName = childEntityId;
@@ -201,13 +204,14 @@ class EnergyandPowerMonitorCard extends LitElement {
         const childValue = parseFloat(childState.state) || 0;
         const childUnit = childState.attributes.unit_of_measurement || '';
         const childUntrackedValue = this.getUntrackedEntityValue(childEntityId);
+        const childDisplayValue = this.config.combine_value_untracked ? (childValue + (childUntrackedValue || 0)) : childValue;
         const childPercentage = (childUntrackedValue > 0 && childValue > 0)
           ? Math.round((childUntrackedValue / childValue) * 100)
           : 0;
         treeStructure.push({
           entity_id: childEntityId,
           friendly_name: childFriendlyName,
-          value: childValue,
+          value: childDisplayValue,
           unit: childUnit,
           level: level + 1,
           percentage: childPercentage,
@@ -591,11 +595,11 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           margin-bottom: 6px;
         }
         .option label {
-          flex: 0 0 200px; /* 10px smaller than previous */
-          font-size: 10px;
+          flex: 0 0 200px;
+          font-size: 11px;
         }
         .option input[type="checkbox"] {
-          margin-left: auto; /* Align checkbox to the right */
+          margin-left: auto;
           width: 14px;
           height: 14px;
         }
@@ -603,7 +607,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         .option input[type="text"],
         .option select {
           flex: 1;
-          font-size: 10px;
+          font-size: 11px;
           padding: 1px;
           margin-left: 0;
         }
@@ -663,7 +667,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           </select>
         </div>
         <div class="option">
-          <label for="remove_strings" title="Enter substrings (e.g., '1 OG; Living') to remove from the beginning of the name if present and followed by a space">Remove strings from name (separated by ;):</label>
+          <label for="remove_strings" title="Enter prefix string(s) to remove (separated by ';') from child names">Remove prefix(s) (sep. by ';'):</label>
           <input type="text" id="remove_strings" name="remove_strings" .value="${this._config.remove_strings}" @change="${this._toggleOption}">
         </div>
         <div class="option">
