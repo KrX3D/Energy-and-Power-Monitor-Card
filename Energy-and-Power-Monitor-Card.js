@@ -24,21 +24,22 @@ class EnergyandPowerMonitorCard extends LitElement {
 
   debugEnabled = false; // Set to true to enable logging
 
-  debugLog(message) {
+  debugLog(msg) {
     if (this.debugEnabled) {
-      console.log(message);
+      console.log(msg);
     }
   }
 
   setConfig(config) {
     this.debugLog('Setting config...');
-    // "clean_subelement_names" option is removed.
     this.config = {
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
-      show_children: config.show_children !== false,
+      // Removed "clean_subelement_names" entirely.
+      // New option for levels to display:
+      levels_to_show: config.levels_to_show || "all",  // "all", "selected", "parents", "first"
       // Style defaults:
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
@@ -103,7 +104,6 @@ class EnergyandPowerMonitorCard extends LitElement {
     this.requestUpdate();
   }
 
-  // Returns a parsed number or null.
   getUntrackedEntityValue(entityId) {
     let val = null;
     if (entityId.endsWith('_power')) {
@@ -117,10 +117,10 @@ class EnergyandPowerMonitorCard extends LitElement {
     return null;
   }
 
-  // Build a flat tree structure from the selected room.
-  // Level 0 (the selected room) is left unchanged.
-  // For children (level ≥ 1), if the friendly name starts with the main room's name (baseName) plus a space, remove that prefix.
-  // Then, if remove_strings is provided, iterate over the substrings and remove the first matching prefix (if present).
+  // Build a flat tree structure.
+  // Level 0 (the selected room) remains unchanged.
+  // For children (level ≥ 1), first remove the base (selected room's) name if present,
+  // then remove any prefix from the remove_strings list if found at the beginning (only the first matching prefix).
   _createTreeView(entityId, level = 0, baseName = null) {
     const entityState = this.hass.states[entityId];
     if (!entityState || !entityState.attributes.selected_entities) {
@@ -138,11 +138,9 @@ class EnergyandPowerMonitorCard extends LitElement {
       if (baseName && friendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && friendlyName.length > baseName.length) {
         friendlyName = friendlyName.substring(baseName.length).trim();
       }
-      // Now, apply additional removals from remove_strings (only remove one prefix)
       if (this.config.remove_strings) {
         const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
-        for (let i = 0; i < substrings.length; i++) {
-          let sub = substrings[i];
+        for (let sub of substrings) {
           if (friendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && friendlyName.length > sub.length) {
             friendlyName = friendlyName.substring(sub.length).trim();
             break;
@@ -157,7 +155,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     if (untrackedValue !== null && !isNaN(untrackedValue)) {
       combinedValue += untrackedValue;
     }
-    // Use combined value if combine_value_untracked is enabled.
+    // Use the combined value if combine_value_untracked is enabled.
     const displayValue = this.config.combine_value_untracked ? combinedValue : normalValue;
     const percentage = (untrackedValue > 0 && (this.config.combine_value_untracked ? combinedValue : normalValue) > 0)
       ? Math.round((untrackedValue / (this.config.combine_value_untracked ? combinedValue : normalValue)) * 100)
@@ -171,9 +169,8 @@ class EnergyandPowerMonitorCard extends LitElement {
       percentage: percentage,
       untrackedValue: untrackedValue
     }];
-    if (!this.config.show_children) {
-      return treeStructure;
-    }
+    // If we don't want to show children (levels_to_show "selected" or "first"), we still generate the full tree here
+    // and filter later.
     entityState.attributes.selected_entities.forEach(childEntityId => {
       if (childEntityId.startsWith('sensor.energy_power_monitor_')) {
         const childTree = this._createTreeView(childEntityId, level + 1, baseName);
@@ -190,8 +187,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         }
         if (this.config.remove_strings) {
           const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
-          for (let i = 0; i < substrings.length; i++) {
-            let sub = substrings[i];
+          for (let sub of substrings) {
             if (childFriendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && childFriendlyName.length > sub.length) {
               childFriendlyName = childFriendlyName.substring(sub.length).trim();
               break;
@@ -266,7 +262,30 @@ class EnergyandPowerMonitorCard extends LitElement {
     });
   }
       
+  // New filtering method for levels_to_show
+  _filterTree(treeStructure) {
+    const option = this.config.levels_to_show || "all";
+    if (option === "selected") {
+      return treeStructure.filter(node => node.level === 0);
+    } else if (option === "first") {
+      return treeStructure.filter(node => node.level <= 1);
+    } else if (option === "parents") {
+      // Only include nodes that have at least one child (i.e. are parents)
+      return treeStructure.filter((node, idx) => {
+        let currentLevel = node.level;
+        for (let j = idx + 1; j < treeStructure.length; j++) {
+          if (treeStructure[j].level <= currentLevel) break;
+          if (treeStructure[j].level === currentLevel + 1) return true;
+        }
+        return false;
+      });
+    }
+    return treeStructure; // "all" option
+  }
+
   _renderTreeView(treeStructure) {
+    // First filter the tree based on levels_to_show.
+    const filteredTree = this._filterTree(treeStructure);
     // Use 60px per level for indentation.
     const renderItems = (items) => {
       return items.map(item => {
@@ -321,7 +340,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         }
       });
     };
-    return renderItems(treeStructure);
+    return renderItems(filteredTree);
   }
 
   _getStyleVariables() {
@@ -357,13 +376,13 @@ class EnergyandPowerMonitorCard extends LitElement {
     if (!roomState) {
       return html`<ha-card><div>No room selected.</div></ha-card>`;
     }
-    const treeStructure = this._createTreeView(selectedRoom);
-    this._setCircleBackgrounds(treeStructure);
+    const fullTree = this._createTreeView(selectedRoom);
+    this._setCircleBackgrounds(fullTree);
     return html`
       <ha-card style="${this._getStyleVariables()}">
         <div class="container">
           <div class="tree-view">
-            ${this._renderTreeView(treeStructure)}
+            ${this._renderTreeView(fullTree)}
           </div>
         </div>
       </ha-card>
@@ -489,7 +508,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
-      show_children: config.show_children !== false,
+      // Removed "Show Children" option.
+      levels_to_show: config.levels_to_show || "all",
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
       room_name_position: config.room_name_position || "below",
@@ -498,10 +518,9 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
-      // New option: default false
       color_untracked_label: config.color_untracked_label === true,
-      // New option: remove_strings (semicolon-separated), default empty string
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
+      levels_to_show: config.levels_to_show || "all",
       room: config.room,
       ...config,
     };
@@ -587,7 +606,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         }
         .option-group h3 {
           margin: 0 0 8px 0;
-          font-size: 12px;
+          font-size: 12.5px;
         }
         .option {
           display: flex;
@@ -596,19 +615,19 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         }
         .option label {
           flex: 0 0 200px;
-          font-size: 11px;
+          font-size: 12.5px;
         }
         .option input[type="checkbox"] {
           margin-left: auto;
-          width: 14px;
-          height: 14px;
+          width: 16px;
+          height: 16px;
         }
         .option input[type="color"],
         .option input[type="text"],
         .option select {
           flex: 1;
-          font-size: 11px;
-          padding: 1px;
+          font-size: 12.5px;
+          padding: 2px;
           margin-left: 0;
         }
       </style>
@@ -641,8 +660,13 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           <input type="checkbox" id="combine_value_untracked" name="combine_value_untracked" .checked="${this._config.combine_value_untracked !== false}" @change="${this._toggleOption}">
         </div>
         <div class="option">
-          <label for="show_children">Show Children:</label>
-          <input type="checkbox" id="show_children" name="show_children" .checked="${this._config.show_children !== false}" @change="${this._toggleOption}">
+          <label for="levels_to_show">Levels to display:</label>
+          <select id="levels_to_show" name="levels_to_show" @change="${this._toggleOption}">
+            <option value="all" ?selected="${this._config.levels_to_show === 'all'}">All</option>
+            <option value="selected" ?selected="${this._config.levels_to_show === 'selected'}">Only Selected</option>
+            <option value="parents" ?selected="${this._config.levels_to_show === 'parents'}">All Parents</option>
+            <option value="first" ?selected="${this._config.levels_to_show === 'first'}">1st Level Max</option>
+          </select>
         </div>
       </div>
       <div class="option-group">
@@ -667,7 +691,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           </select>
         </div>
         <div class="option">
-          <label for="remove_strings" title="Enter prefix string(s) to remove (separated by ';') from child names">Remove prefix(s) (sep. by ';'):</label>
+          <label for="remove_strings" title="Enter prefix(s) to remove (separated by ';') from child names">Remove prefix (sep. by ';'):</label>
           <input type="text" id="remove_strings" name="remove_strings" .value="${this._config.remove_strings}" @change="${this._toggleOption}">
         </div>
         <div class="option">
