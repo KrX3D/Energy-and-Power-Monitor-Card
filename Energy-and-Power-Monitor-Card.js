@@ -135,10 +135,8 @@ class EnergyandPowerMonitorCard extends LitElement {
                                             .replace(/ (Power|Energy)$/gi, '')
                                             .trim();
     if (level === 0) {
-      // For the main room, keep its name as-is and use it as base.
       baseName = friendlyName;
     } else {
-      // For children, if name starts with baseName plus a space and is longer, remove it.
       if (baseName && friendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && friendlyName.length > baseName.length) {
         friendlyName = friendlyName.substring(baseName.length).trim();
       }
@@ -147,7 +145,6 @@ class EnergyandPowerMonitorCard extends LitElement {
     if (this.config.remove_strings) {
       const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
       substrings.forEach(sub => {
-        // Only remove if the name starts with the substring followed by a space and extra text.
         if (friendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && friendlyName.length > sub.length) {
           friendlyName = friendlyName.substring(sub.length).trim();
         }
@@ -563,17 +560,14 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
-    // Options for font sizes (8px to 20px in 0.5px steps)
     const fontSizeOptions = [];
     for (let i = 8; i <= 20; i += 0.5) {
       fontSizeOptions.push(i.toFixed(1) + "px");
     }
-    // Options for circle size (50px to 200px in 5px steps)
     const circleSizeOptions = [];
     for (let i = 50; i <= 200; i += 5) {
       circleSizeOptions.push(i + "px");
     }
-    // Options for icon size (12px to 50px in 1px steps)
     const iconSizeOptions = [];
     for (let i = 12; i <= 50; i += 1) {
       iconSizeOptions.push(i + "px");
@@ -589,22 +583,25 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         }
         .option-group h3 {
           margin: 0 0 8px 0;
-          font-size: 14px;
+          font-size: 13px;
         }
         .option {
           display: flex;
           align-items: center;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
         }
         .option label {
-          flex: 0 0 220px;
-          font-size: 12px;
+          flex: 0 0 210px; /* 5px smaller than previous 215px */
+          font-size: 11px;
         }
         .option input[type="checkbox"],
         .option input[type="color"],
         .option input[type="text"],
         .option select {
           flex: 1;
+          font-size: 11px;
+          padding: 2px;
+          margin-left: 0; /* Align flush under label */
         }
       </style>
       <div class="option-group">
