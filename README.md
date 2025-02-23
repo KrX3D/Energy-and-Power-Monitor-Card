@@ -1,115 +1,121 @@
 # Energy and Power Monitor Card
 
-The **Energy and Power Monitor Card** is a custom Home Assistant card that works alongside the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration). 
-It allows you to monitor and display energy and power consumption for different rooms or devices using a user-friendly configuration interface. You can set up and configure the card directly through the UI or using YAML.
+The **Energy and Power Monitor Card** is a custom Home Assistant card that works alongside the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration). It allows you to monitor and display energy and power consumption for different rooms or devices using a user-friendly configuration interface. You can set up and configure the card directly through the UI or using YAML.
 
 ---
 
 ## Features
 
-- **Room Selection**: Select a room from the list of rooms created in the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration).
-- **Show/Hide Name**: Toggle the display of the room name on the card.
-- **Show/Hide Icon**: Option to show or hide the icon associated with the room.
-- **Show Untracked Values**: Display untracked power/energy values in a second row, such as devices that consume energy but are not actively monitored.
-- **Show Combined Values**: Adds to the value (first row, if untracked values are shown) the value of the untracked sensor.
-- **Clean Subelement Names**: Automatically removes the parent element's name from its subelement. For example, if you have a structure like "House > Bath," any subelements under "Bath" will have "Bath " removed from the beginning of their friendly names.
-- **Show Children**: Option to show or hide child entities under the selected room.
+- **Room Selection**:  
+  Select a room from the list automatically fetched from the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration).
+
+- **Display Options**:  
+  Toggle the display of the room name and icon.
+
+- **Untracked Values**:  
+  Option to display untracked power/energy values separately.
+
+- **Combine Values**:  
+  When enabled, the card displays the combined value (tracked + untracked) in place of the tracked value.
+
+- **Room Name Position**:  
+  Choose whether to display the room name inside the circle or below it.
+
+- **Remove Prefix**:  
+  Remove specified prefix strings from child entity names.  
+  Enter a semicolon-separated list (e.g. `1 OG; Schlafzimmer; Arbeitszimmer`) and if a child’s name starts with any of these prefixes (followed by a space and additional text) the prefix is removed.
+
+- **Levels to Display**:  
+  Choose how many levels of the tree to show:
+  - **All**: Show every level.
+  - **Only Selected**: Show only the selected room.
+  - **All Parents**: Show only nodes that have children (omit leaf nodes).
+  - **1st Level Max**: Show only the selected room and its immediate children.
+
+- **Color Untracked Label**:  
+  Option to use the untracked color for the untracked value label.
+
+- **Styling Options**:  
+  Configure font sizes for tracked/untracked values and room names, as well as icon and circle sizes.
 
 ---
 
 ## Prerequisites
 
-This card requires the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration) to be installed and correctly set up in your Home Assistant instance.
-
----
-
-## Configuration Options
-
-The card includes a configuration GUI for easy setup. Below are the options you can configure:
-
-- **Select Room**: 
-  - Dropdown to select the room for which you want to display energy and power consumption. The rooms are fetched automatically from the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration).
-
-- **Show Name**: 
-  - Checkbox to toggle the visibility of the room name on the card.
-
-- **Show Icon**: 
-  - Checkbox to toggle the visibility of the icon associated with the room.
-
-- **Show Untracked Values**: 
-  - Checkbox to toggle the display of untracked power/energy values (second row).
-
-- **Show Combined Values**: 
-  - Checkbox to toggle the combination of untracked power/energy values.
-
-- **Clean Subelement Names**: 
-  - Checkbox to remove the parent name from subelement names (e.g., "Bath " from "Bath Subelement").
-
-- **Show Children**: 
-  - Checkbox to toggle the visibility of child entities under the selected room.
+This card requires the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration) to be installed and properly configured in your Home Assistant instance.
 
 ---
 
 ## Installation
 
-### Manual
+### Manual Installation
 
 1. Copy the contents of this repository into your Home Assistant `config/www/community/energy-power-monitor-card/` directory.
 2. Add the card to your Lovelace configuration:
-   - Navigate to **Configuration > Dashboards > Resources** in the Home Assistant UI.
-   - Click **Add Resource** and enter the following URL: `/local/energy-power-monitor-card.js`.
+   - Navigate to **Configuration > Dashboards > Resources** in Home Assistant.
+   - Click **Add Resource** and enter the URL: `/local/energy-power-monitor-card.js`
    - Set the resource type to **JavaScript Module**.
-3. Use the card in your Lovelace dashboard by adding it through the Visual Editor or using YAML mode.
+3. Add the card to your dashboard using the Visual Editor or YAML mode.
 
-### HACS
+### HACS Installation
 
-1. This repository can also be added to HACS (Home Assistant Community Store):
-   - In HACS, click on the three dots in the top right corner.
-   - Select **"Add a repository"** and choose **"Dashboard"** as the type.
-   - Enter the URL of this repository: `https://github.com/KrX3D/room-power-monitor-card`.
+1. In HACS, click on the three dots in the top right.
+2. Select **Add a repository** and choose **Dashboard** as the type.
+3. Enter the URL: `https://github.com/KrX3D/energy-power-monitor-card`
+4. Install the repository via HACS and restart Home Assistant if necessary.
+5. Add the card as a resource in your Lovelace configuration.
 
 ---
 
-## Configuration
+## Configuration Options
 
-### YAML (optional)
+| Option                          | Type     | Default     | Description |
+|---------------------------------|----------|-------------|-------------|
+| **Select Room**                 | Dropdown | *(First room)* | Choose the room to display. Rooms are fetched from the Energy and Power Monitor Integration. |
+| **Show Name**                   | Checkbox | `true`      | Toggle the display of the room name on the card. |
+| **Show Icon**                   | Checkbox | `true`      | Toggle the display of the room icon. |
+| **Show Untracked Values**       | Checkbox | `true`      | Toggle the display of untracked power/energy values. |
+| **Combine Untracked Values**    | Checkbox | `false`     | When enabled, the card displays the sum of tracked and untracked values. |
+| **Room Name Position**          | Dropdown | `below`     | Choose where to display the room name: `inside` or `below` the circle. |
+| **Remove prefix (sep. by ';')**  | Text     | `""`        | Enter prefix strings to remove from child names if present at the start (followed by a space). |
+| **Levels to Display**           | Dropdown | `all`       | Options: <br>**All** – show all levels. <br>**Only Selected** – show only the selected room. <br>**All Parents** – show only nodes that have children (omit leaf nodes). <br>**1st Level Max** – show only the selected room and its immediate children. |
+| **Tracked Color**               | Color    | `#3CB371`   | Color for tracked values and circle border. |
+| **Untracked Color**             | Color    | `#808080`   | Color for untracked values and (optionally) for the untracked label. |
+| **Color Untracked Label**       | Checkbox | `false`     | When enabled, the untracked value label uses the untracked color. |
+| **Tracked Value Size**          | Dropdown | `10.5px`    | Font size for the tracked value display. |
+| **Untracked Value Size**        | Dropdown | `10.5px`    | Font size for the untracked value display. |
+| **Room Name Size**              | Dropdown | `10.5px`    | Font size for the room name text. |
+| **Icon Size**                   | Dropdown | `22px`      | Icon size for the room icon. |
+| **Circle Size**                 | Dropdown | `80px`      | Diameter of the circle in pixels. |
+
+---
+
+## YAML Configuration Example
 
 ```yaml
 type: custom:energy-power-monitor-card
 room: sensor.living_room_energy
 show_name: true
 show_icon: true
-combine_value_untracked: true
-clean_subelement_names: true
 show_untracked_values: true
-show_children: true
+combine_value_untracked: true
+levels_to_show: all
+remove_strings: "1 OG; Schlafzimmer; Arbeitszimmer"
+tracked_color: "#3CB371"
+untracked_color: "#808080"
+color_untracked_label: false
+room_name_position: below
+tracked_value_size: 10.5px
+untracked_value_size: 10.5px
+room_name_size: 10.5px
+icon_size: 22px
+circle_size: 80px
 ```
 
-### GUI
+## GUI Configuration
 
-1. Go to Dashboards and click on the Add Card button.
-2. Search for or select the Energy and Power Monitor Card from the list of available cards.
-3. Use the dropdown menu to select the desired room.
-4. Toggle the checkboxes for the options:
-    - Show Name: Show or hide the room name.
-    - Show Icon: Show or hide the room icon.
-    - Show Untracked Values: Show or hide untracked power/energy values.
-    - Show Combined Values: Add untracked values to entity value.
-    - Clean Subelement Names: Show or hide cleaned subelement names.
-    - Show Children: Show or hide child entities.
-5. Save your changes, and the card will be added to your dashboard.
-
----
-
-## Troubleshooting
-
-- Ensure that the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration) is installed and correctly set up before using this card.
-- The card's JavaScript file is correctly placed in your /config/www/community folder.
-- You have added the resource URL in your Dashboard settings under Resources.
-- You are using the correct entity IDs in your configuration.
-
----
-
-## Contributing
-
-If you have suggestions for improvements or encounter any issues, please feel free to open an issue or submit a pull request.
+1. Go to **Dashboards** and click **Add Card**.
+2. Select the **Energy and Power Monitor Card**.
+3. In **General Options**, choose the room and toggle basic options (Show Name, Show Icon, Show Untracked Values, Combine Untracked Values).
+4. In **Style Options**, adjust colors, font sizes, icon and circle sizes, room name position, specify prefix removals (using `;` as the separator), and select the levels to display.
+5. Save your changes.
