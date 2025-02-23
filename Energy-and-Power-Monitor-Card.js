@@ -37,8 +37,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
-      // Restore clean_subelement_names default to true unless explicitly false:
-      clean_subelement_names: config.clean_subelement_names !== false,
+      // Removed clean_subelement_names entirely.
       show_children: config.show_children !== false,
       // Style defaults:
       tracked_color: config.tracked_color || "#3CB371",
@@ -51,7 +50,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       circle_size: config.circle_size || "80px",
       // New option: color untracked label (default false)
       color_untracked_label: config.color_untracked_label === true,
-      // New option: remove_strings (a semicolon-separated list), default empty string
+      // New option: remove_strings – a semicolon-separated list (default empty)
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
       room: config.room, // may be undefined initially
       ...config,
@@ -86,9 +85,10 @@ class EnergyandPowerMonitorCard extends LitElement {
       )
       .map(entity => {
         let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
-        // Original cleaning:
-        friendlyName = friendlyName.replace(/ selected entities -/gi, '');
-        friendlyName = friendlyName.replace(/ (Power|Energy)$/i, '');
+        // Always remove these strings from the room name:
+        friendlyName = friendlyName.replace(/ selected entities -/gi, '')
+                                   .replace(/ (Power|Energy)$/gi, '')
+                                   .trim();
         if (!friendlyName.trim()) {
           friendlyName = entity.entity_id;
         }
@@ -118,39 +118,39 @@ class EnergyandPowerMonitorCard extends LitElement {
   }
 
   // Build a flat tree structure from the selected room.
-  // The selected room’s name (level 0) is left untouched.
-  // For all children (level >= 1), if their friendly name starts with the selected room's name plus a space,
-  // it is removed. Also, any substrings specified in remove_strings (separated by ";") are removed.
+  // Level 0 (the selected room) is left intact.
+  // For all children (level ≥ 1), if the friendly name starts with the base (selected room's name + space), remove that prefix.
+  // Then, for each substring specified in remove_strings, if the friendly name starts with that substring (followed by a space)
+  // and the name is longer than that substring, remove it.
   _createTreeView(entityId, level = 0, baseName = null) {
-    // When starting at the root, reset baseName.
     const entityState = this.hass.states[entityId];
     if (!entityState || !entityState.attributes.selected_entities) {
       this.debugLog(`No selected entities for ${entityId}`);
       return [];
     }
     let originalFriendlyName = entityState.attributes.friendly_name || entityId;
-    let friendlyName;
+    // Always remove the common strings:
+    let friendlyName = originalFriendlyName.replace(/ selected entities -/gi, '')
+                                            .replace(/ (Power|Energy)$/gi, '')
+                                            .trim();
     if (level === 0) {
-      // Leave the main room's name untouched.
-      friendlyName = originalFriendlyName;
-      baseName = originalFriendlyName;
+      // For the main room, keep its name as-is and use it as the base.
+      baseName = friendlyName;
     } else {
-      // For children, remove the main room's name prefix.
-      friendlyName = (entityState.attributes.friendly_name || entityId)
-                     .replace(/ selected entities -/gi, '')
-                     .replace(/ (Power|Energy)$/i, '');
-      if (baseName && friendlyName.startsWith(baseName + ' ')) {
-        friendlyName = friendlyName.substring((baseName + ' ').length);
+      // For children, if their name starts with the baseName followed by a space, remove that prefix.
+      if (baseName && friendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && friendlyName.length > baseName.length) {
+        friendlyName = friendlyName.substring(baseName.length).trim();
       }
     }
-    // Remove any additional substrings specified in remove_strings.
+    // Now, apply the removal of additional substrings (if provided).
     if (this.config.remove_strings) {
       const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
       substrings.forEach(sub => {
-        // Remove all occurrences (case-insensitive)
-        friendlyName = friendlyName.replace(new RegExp(sub, "gi"), "");
+        // Only remove if the name starts with sub followed by a space and the name is longer than sub.
+        if (friendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && friendlyName.length > sub.length) {
+          friendlyName = friendlyName.substring(sub.length).trim();
+        }
       });
-      friendlyName = friendlyName.trim();
     }
     const normalValue = parseFloat(entityState.state) || 0;
     let combinedValue = normalValue;
@@ -186,17 +186,18 @@ class EnergyandPowerMonitorCard extends LitElement {
         if (!childState) return;
         let childFriendlyName = (childState.attributes.friendly_name || childEntityId)
                                   .replace(/ selected entities -/gi, '')
-                                  .replace(/ (Power|Energy)$/i, '');
-        if (baseName && childFriendlyName.startsWith(baseName + ' ')) {
-          childFriendlyName = childFriendlyName.substring((baseName + ' ').length);
+                                  .replace(/ (Power|Energy)$/gi, '')
+                                  .trim();
+        if (level >= 0 && baseName && childFriendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && childFriendlyName.length > baseName.length) {
+          childFriendlyName = childFriendlyName.substring(baseName.length).trim();
         }
-        // Also remove any substrings from remove_strings.
         if (this.config.remove_strings) {
           const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
           substrings.forEach(sub => {
-            childFriendlyName = childFriendlyName.replace(new RegExp(sub, "gi"), "");
+            if (childFriendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && childFriendlyName.length > sub.length) {
+              childFriendlyName = childFriendlyName.substring(sub.length).trim();
+            }
           });
-          childFriendlyName = childFriendlyName.trim();
         }
         if (!childFriendlyName.trim()) {
           childFriendlyName = childEntityId;
@@ -276,7 +277,6 @@ class EnergyandPowerMonitorCard extends LitElement {
         const untrackedDisplay = this.config.show_untracked_values && item.untrackedValue !== null
           ? `U: ${item.untrackedValue} ${item.unit}`
           : '';
-        // For room name inside the circle, allow multi-line.
         const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
         if (this.config.room_name_position === 'below' && this.config.show_name) {
           return html`
@@ -489,7 +489,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
-      clean_subelement_names: config.clean_subelement_names !== false,
+      // Removed clean_subelement_names option
       show_children: config.show_children !== false,
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
@@ -501,7 +501,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       circle_size: config.circle_size || "80px",
       // New option: default false
       color_untracked_label: config.color_untracked_label === true,
-      // New option: remove_strings (a semicolon-separated list), default empty string
+      // New option: remove_strings (semicolon-separated), default empty string
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
       room: config.room,
       ...config,
@@ -522,8 +522,9 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       )
       .map(entity => {
         let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
-        friendlyName = friendlyName.replace(/ selected entities -/gi, '');
-        friendlyName = friendlyName.replace(/ (Power|Energy)$/i, '');
+        friendlyName = friendlyName.replace(/ selected entities -/gi, '')
+                                   .replace(/ (Power|Energy)$/gi, '')
+                                   .trim();
         if (!friendlyName.trim()) {
           friendlyName = entity.entity_id;
         }
@@ -606,7 +607,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       </div>
       <div>
         <label for="clean_subelement_names">Clean Subelement Names:</label>
-        <input type="checkbox" id="clean_subelement_names" name="clean_subelement_names" .checked="${this._config.clean_subelement_names !== false}" @change="${this._toggleOption}">
+        <!-- This option is removed from the card but kept here for backward compatibility if needed -->
+        <input type="checkbox" id="clean_subelement_names" name="clean_subelement_names" disabled value="false">
       </div>
       <div>
         <label for="show_children">Show Children:</label>
@@ -633,7 +635,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         </select>
       </div>
       <div>
-        <label for="remove_strings" title="Enter substrings separated by a semicolon (;) to remove from the name">Remove strings from name (separated by ;):</label>
+        <label for="remove_strings" title="Enter substrings (e.g., '1 OG; Living') to remove from the beginning of the name if present and followed by a space">Remove strings from name (separated by ;):</label>
         <input type="text" id="remove_strings" name="remove_strings" .value="${this._config.remove_strings}" @change="${this._toggleOption}">
       </div>
       <div>
