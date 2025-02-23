@@ -38,8 +38,8 @@ class EnergyandPowerMonitorCard extends LitElement {
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
-      // New dropdown option for levels to display:
-      levels_to_show: config.levels_to_show || "all",  // "all", "selected", "parents", "first"
+      // New option: Levels to display (dropdown)
+      levels_to_show: config.levels_to_show || "all",  // Options: "all", "selected", "parents", "first"
       // Style defaults:
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
@@ -53,7 +53,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       color_untracked_label: config.color_untracked_label === true,
       // New option: remove_strings – a semicolon-separated list (default empty)
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
-      room: config.room,
+      room: config.room, // may be undefined initially
       ...config,
     };
     this.debugLog(`Config updated: ${JSON.stringify(this.config)}`);
@@ -84,6 +84,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       )
       .map(entity => {
         let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
+        // Always remove these common strings:
         friendlyName = friendlyName.replace(/ selected entities -/gi, '')
                                    .replace(/ (Power|Energy)$/gi, '')
                                    .trim();
@@ -112,8 +113,9 @@ class EnergyandPowerMonitorCard extends LitElement {
   }
 
   // Build a flat tree structure.
-  // For level 0 (selected room), keep its name; for children, if the name starts with the base name (selected room's name plus a space), remove that prefix.
-  // Then, for each substring in remove_strings, remove only the first matching prefix (if followed by a space).
+  // For level 0 (the selected room), keep its name as-is.
+  // For children (level ≥ 1), remove the base (selected room's) name if it appears at the start,
+  // then remove the first matching prefix from remove_strings (if found and followed by a space).
   _createTreeView(entityId, level = 0, baseName = null) {
     const entityState = this.hass.states[entityId];
     if (!entityState || !entityState.attributes.selected_entities) {
@@ -147,11 +149,11 @@ class EnergyandPowerMonitorCard extends LitElement {
     if (untrackedValue !== null && !isNaN(untrackedValue)) {
       combinedValue += untrackedValue;
     }
-    // Compute total as tracked + untracked for the gradient ratio
+    // Use the combined value if enabled; otherwise, normal value.
+    const displayValue = this.config.combine_value_untracked ? combinedValue : normalValue;
+    // Calculate percentage using total value (tracked + untracked).
     const total = normalValue + (untrackedValue || 0);
     const percentage = total > 0 ? Math.round((untrackedValue || 0) / total * 100) : 0;
-    // Display value: if combine_value_untracked is enabled, show combined value; otherwise, show normal value.
-    const displayValue = this.config.combine_value_untracked ? combinedValue : normalValue;
     let treeStructure = [{
       entity_id: entityId,
       friendly_name: friendlyName,
@@ -161,71 +163,72 @@ class EnergyandPowerMonitorCard extends LitElement {
       percentage: percentage,
       untrackedValue: untrackedValue
     }];
-    if (!this.config.levels_to_show || this.config.levels_to_show === "all") {
-      // Show all levels (no filtering)
-      entityState.attributes.selected_entities.forEach(childEntityId => {
-        if (childEntityId.startsWith('sensor.energy_power_monitor_')) {
-          const childTree = this._createTreeView(childEntityId, level + 1, baseName);
-          treeStructure = treeStructure.concat(childTree);
-        } else {
-          const childState = this.hass.states[childEntityId];
-          if (!childState) return;
-          let childFriendlyName = (childState.attributes.friendly_name || childEntityId)
-                                    .replace(/ selected entities -/gi, '')
-                                    .replace(/ (Power|Energy)$/gi, '')
-                                    .trim();
-          if (baseName && childFriendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && childFriendlyName.length > baseName.length) {
-            childFriendlyName = childFriendlyName.substring(baseName.length).trim();
-          }
-          if (this.config.remove_strings) {
-            const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
-            for (let sub of substrings) {
-              if (childFriendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && childFriendlyName.length > sub.length) {
-                childFriendlyName = childFriendlyName.substring(sub.length).trim();
-                break;
-              }
+    // Always generate full tree; filtering happens later.
+    entityState.attributes.selected_entities.forEach(childEntityId => {
+      if (childEntityId.startsWith('sensor.energy_power_monitor_')) {
+        const childTree = this._createTreeView(childEntityId, level + 1, baseName);
+        treeStructure = treeStructure.concat(childTree);
+      } else {
+        const childState = this.hass.states[childEntityId];
+        if (!childState) return;
+        let childFriendlyName = (childState.attributes.friendly_name || childEntityId)
+                                  .replace(/ selected entities -/gi, '')
+                                  .replace(/ (Power|Energy)$/gi, '')
+                                  .trim();
+        if (baseName && childFriendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && childFriendlyName.length > baseName.length) {
+          childFriendlyName = childFriendlyName.substring(baseName.length).trim();
+        }
+        if (this.config.remove_strings) {
+          const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(s => s);
+          for (let sub of substrings) {
+            if (childFriendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && childFriendlyName.length > sub.length) {
+              childFriendlyName = childFriendlyName.substring(sub.length).trim();
+              break;
             }
           }
-          if (!childFriendlyName.trim()) {
-            childFriendlyName = childEntityId;
-          }
-          const childValue = parseFloat(childState.state) || 0;
-          const childUnit = childState.attributes.unit_of_measurement || '';
-          const childUntrackedValue = this.getUntrackedEntityValue(childEntityId);
-          const childDisplayValue = this.config.combine_value_untracked ? (childValue + (childUntrackedValue || 0)) : childValue;
-          const childPercentage = childValue + (childUntrackedValue || 0) > 0
-            ? Math.round((childUntrackedValue || 0) / (childValue + (childUntrackedValue || 0)) * 100)
-            : 0;
-          treeStructure.push({
-            entity_id: childEntityId,
-            friendly_name: childFriendlyName,
-            value: childDisplayValue,
-            unit: childUnit,
-            level: level + 1,
-            percentage: childPercentage,
-            untrackedValue: childUntrackedValue
-          });
-          this.debugLog(`Added child: ${childFriendlyName} at level ${level + 1}`);
         }
-      });
-    } else if (this.config.levels_to_show === "selected") {
-      // Only show the selected room (level 0)
-      treeStructure = treeStructure.filter(node => node.level === 0);
-    } else if (this.config.levels_to_show === "first") {
-      // Show only level 0 and 1.
-      treeStructure = treeStructure.filter(node => node.level <= 1);
-    } else if (this.config.levels_to_show === "parents") {
-      // Show only nodes that have at least one child (omit leaves).
-      treeStructure = treeStructure.filter((node, idx) => {
+        if (!childFriendlyName.trim()) {
+          childFriendlyName = childEntityId;
+        }
+        const childValue = parseFloat(childState.state) || 0;
+        const childUnit = childState.attributes.unit_of_measurement || '';
+        const childUntrackedValue = this.getUntrackedEntityValue(childEntityId);
+        const childDisplayValue = this.config.combine_value_untracked ? (childValue + (childUntrackedValue || 0)) : childValue;
+        const childTotal = childValue + (childUntrackedValue || 0);
+        const childPercentage = childTotal > 0 ? Math.round((childUntrackedValue || 0) / childTotal * 100) : 0;
+        treeStructure.push({
+          entity_id: childEntityId,
+          friendly_name: childFriendlyName,
+          value: childDisplayValue,
+          unit: childUnit,
+          level: level + 1,
+          percentage: childPercentage,
+          untrackedValue: childUntrackedValue
+        });
+        this.debugLog(`Added child: ${childFriendlyName} at level ${level + 1}`);
+      }
+    });
+    return treeStructure;
+  }
+
+  // New method to filter the full tree based on the levels_to_show option.
+  _filterTree(tree) {
+    const option = this.config.levels_to_show || "all";
+    if (option === "selected") {
+      return tree.filter(node => node.level === 0);
+    } else if (option === "first") {
+      return tree.filter(node => node.level <= 1);
+    } else if (option === "parents") {
+      return tree.filter((node, idx) => {
         let curLevel = node.level;
-        for (let j = idx + 1; j < treeStructure.length; j++) {
-          if (treeStructure[j].level <= curLevel) break;
-          if (treeStructure[j].level === curLevel + 1) return true;
+        for (let j = idx + 1; j < tree.length; j++) {
+          if (tree[j].level <= curLevel) break;
+          if (tree[j].level === curLevel + 1) return true;
         }
         return false;
       });
     }
-    return treeStructure;
+    return tree; // "all" option returns full tree
   }
 
   splitAtNearestSpace(text, maxLineLength = 15) {
@@ -272,6 +275,8 @@ class EnergyandPowerMonitorCard extends LitElement {
   }
       
   _renderTreeView(treeStructure) {
+    // First filter the tree based on levels_to_show.
+    const filteredTree = this._filterTree(treeStructure);
     // Use 60px per level for indentation.
     const renderItems = (items) => {
       return items.map(item => {
@@ -326,7 +331,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         }
       });
     };
-    return renderItems(treeStructure);
+    return renderItems(filteredTree);
   }
 
   _getStyleVariables() {
@@ -456,7 +461,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
-      // "Show Children" option removed – replaced by levels_to_show.
       levels_to_show: config.levels_to_show || "all",
       tracked_color: config.tracked_color || "#3CB371",
       untracked_color: config.untracked_color || "#808080",
