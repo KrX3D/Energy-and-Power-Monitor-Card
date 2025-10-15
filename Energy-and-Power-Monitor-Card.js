@@ -244,23 +244,63 @@ class EnergyandPowerMonitorCard extends LitElement {
     }
     return tree;
   }
+  
+// Split a friendly name into lines at nearest spaces, for nicer small-circle rendering.
+// Returns an array of strings (may be length 0).
+splitAtNearestSpace(text, maxLineLength = 15) {
+  if (!text) return [];
+  const words = String(text).split(' ').filter(Boolean);
+  if (words.length === 0) return [];
+  const lines = [];
+  let current = '';
 
-  splitAtNearestSpace(text, maxLineLength = 15) {
-    if (!text) return [];
-    const words = text.split(' ');
-    const lines = [];
-    let current = '';
-    for (let w of words) {
-      if ((current + w).length > maxLineLength) {
-        if (current) lines.push(current.trim());
-        current = w + ' ';
-      } else {
-        current += w + ' ';
-      }
+  for (let w of words) {
+    // if adding this word would exceed the length, push current and start new line
+    if ((current + (current ? ' ' : '') + w).length > maxLineLength) {
+      if (current) lines.push(current);
+      current = w;
+    } else {
+      current = current ? `${current} ${w}` : w;
     }
-    if (current) lines.push(current.trim());
-    return lines;
   }
+  if (current) lines.push(current);
+  return lines;
+}
+
+	// Format a number according to decimal_precision; returns string
+	_formatNumber(val) {
+	  // invalid / missing -> return empty string
+	  if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
+	
+	  // Safely read decimal_precision with fallbacks
+	  let rawPrecision = 1;
+	  if (this && this.config && this.config.decimal_precision !== undefined) {
+	    rawPrecision = this.config.decimal_precision;
+	  }
+	  const precision = (typeof rawPrecision === 'number') ? rawPrecision : (parseInt(rawPrecision, 10) || 1);
+	  const p = Math.max(0, Math.min(3, precision)); // clamp 0..3
+	
+	  try {
+	    // toFixed can throw if p is extremely large or not a number, but we've clamped it
+	    const fixed = Number(val).toFixed(p);
+	    // parseFloat removes unnecessary trailing zeros (e.g. "2.700" -> 2.7)
+	    const parsed = parseFloat(fixed);
+	    if (isNaN(parsed)) return String(Number(val));
+	    return parsed.toString();
+	  } catch (e) {
+	    // fallback to simple conversion
+	    const n = Number(val);
+	    return isNaN(n) ? '' : n.toString();
+	  }
+	}
+	
+	// Format a value + unit (unit optional)
+	_formatValue(val, unit) {
+	  const numStr = this._formatNumber(val);
+	  if (!numStr) return '';
+	  return unit ? `${numStr} ${unit}` : numStr;
+	}
+
 
   _getBorderColor(percentage, untrackedValue) {
     const trackedColor = this.config.tracked_color || "#3CB371";
@@ -293,11 +333,12 @@ class EnergyandPowerMonitorCard extends LitElement {
     const renderItems = (items) => items.map(item => {
       const marginLeft = item.level * 60;
       const roomState = this.hass.states[item.entity_id];
-      const showIcon = this.config.show_icon && roomState && roomState.attributes && roomState.attributes.icon;
-      const normalDisplay = (item.value !== null && item.value !== undefined) ? `${item.value} ${item.unit || ''}`.trim() : '';
-      const untrackedDisplay = this.config.show_untracked_values && item.untrackedValue !== null
-        ? `U: ${item.untrackedValue} ${item.unit || ''}`.trim()
-        : '';
+      const showIcon = (this.config && this.config.show_icon) && roomState && roomState.attributes && roomState.attributes.icon;
+      // formatted displays
+		const normalDisplay = (item.value !== null && item.value !== undefined) ? this._formatValue(item.value, item.unit) : '';
+		const untrackedDisplay = (this.config && this.config.show_untracked_values && item.untrackedValue !== null && item.untrackedValue !== undefined)
+		  ? `U: ${this._formatValue(item.untrackedValue, item.unit)}`
+		  : '';
       const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
       const circleBackground = this._getBorderColor(item.percentage, item.untrackedValue);
 
@@ -350,6 +391,19 @@ class EnergyandPowerMonitorCard extends LitElement {
 
   // sanitize ring width and clamp to half circle (with small margin)
   _getStyleVariables() {
+    // Parse circle size (e.g. "80px") to number (px)
+    const circleSizeRaw = this.config.circle_size || '80px';
+    const circleSizeNum = parseFloat(circleSizeRaw) || 80;
+
+    // Parse ring width config (allow "8px" or numeric 8)
+    let rawRing = this.config.ring_width;
+    if (rawRing === undefined || rawRing === null) rawRing = '6px';
+    const ringNum = parseFloat(rawRing) || 6;
+
+    // Ensure ring is not larger than half the circle (leave a tiny margin)
+    const maxRing = Math.max(2, Math.floor(circleSizeNum / 2) - 4);
+    const finalRing = Math.min(ringNum, maxRing);
+
     return `
       --tracked-value-size: ${this.config.tracked_value_size};
       --untracked-value-size: ${this.config.untracked_value_size};
@@ -359,7 +413,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       --circle-tracked-color: ${this.config.tracked_color};
       --circle-untracked-color: ${this.config.untracked_color};
       --untracked-label-color: ${this.config.color_untracked_label ? this.config.untracked_color : 'grey'};
-      --ring-width: ${this.config.ring_width || '6px'};
+      --ring-width: ${finalRing}px;
     `;
   }
 
@@ -500,6 +554,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       color_untracked_label: config.color_untracked_label === true,
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
       room: config.room,
+      ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
+      decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
       ...config,
     };
     this.rooms = [];
@@ -543,7 +599,12 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   _toggleOption(ev) {
     const option = ev.target.name;
     let value = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
-    // checkboxes return boolean, select/text return string
+    // coerce decimal_precision to number
+    if (option === 'decimal_precision') {
+      value = parseInt(value);
+      if (isNaN(value)) value = 1;
+      value = Math.max(0, Math.min(3, value));
+    }
     this._config = { ...this._config, [option]: value };
     this.fireConfigChanged();
     this.requestUpdate();
