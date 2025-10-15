@@ -675,6 +675,23 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             ${circleSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.circle_size === size}">${size}</option>`)}
           </select>
         </div>
+
+        <div class="option">
+          <label for="ring_width">Ring Width:</label>
+          <select id="ring_width" name="ring_width" @change="${this._toggleOption}">
+            ${ringWidthOptions.map(v => html`
+              <option value="${v}" ?selected="${this._config.ring_width === v}">${v}</option>
+            `)}
+          </select>
+        </div>
+
+        <div class="option">
+          <label for="decimal_precision" title="Decimal places shown for numeric values">Decimal Precision:</label>
+          <select id="decimal_precision" name="decimal_precision" @change="${this._toggleOption}">
+            ${decimalOptions.map(d => html`<option value="${d}" ?selected="${this._config.decimal_precision === d}">${d}</option>`)}
+          </select>
+        </div>
+
       </div>
     `;
   }
