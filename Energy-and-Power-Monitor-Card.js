@@ -108,7 +108,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     }
   }
 
-  // Build a flat tree structure. Avoid cycles via visited set.
+  // Build flat tree; avoid cycles via visited set.
   _createTreeView(entityId, level = 0, baseName = null, visited = new Set()) {
     if (visited.has(entityId)) {
       this.debugLog(`Skipping already visited ${entityId}`);
@@ -300,7 +300,8 @@ class EnergyandPowerMonitorCard extends LitElement {
         : '';
       const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
       const circleBackground = this._getBorderColor(item.percentage, item.untrackedValue);
-      // style variable sets the gradient for ::before
+
+      // prepare ring width sanitized in _getStyleVariables() -> so use CSS var there
       const circleStyle = `--circle-background: ${circleBackground};`;
       if (this.config.room_name_position === 'below' && this.config.show_name) {
         return html`
@@ -347,6 +348,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     return renderItems(filtered);
   }
 
+  // sanitize ring width and clamp to half circle (with small margin)
   _getStyleVariables() {
     return `
       --tracked-value-size: ${this.config.tracked_value_size};
@@ -398,6 +400,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         width: var(--circle-size, 80px);
         height: var(--circle-size, 80px);
       }
+
       /* show gradient ring behind everything */
       .circle::before {
         content: "";
@@ -561,6 +564,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     for (let i = 50; i <= 200; i += 5) circleSizeOptions.push(i + "px");
     const iconSizeOptions = [];
     for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(i + "px");
+    const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
+    const decimalOptions = [0,1,2,3];
     const selectedRoom = this._config?.room || "";
 
     return html`
@@ -656,12 +661,14 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.room_name_size === size}">${size}</option>`)}
           </select>
         </div>
+
         <div class="option">
           <label for="icon_size">Icon Size:</label>
           <select id="icon_size" name="icon_size" @change="${this._toggleOption}">
             ${iconSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.icon_size === size}">${size}</option>`)}
           </select>
         </div>
+
         <div class="option">
           <label for="circle_size">Circle Size:</label>
           <select id="circle_size" name="circle_size" @change="${this._toggleOption}">
