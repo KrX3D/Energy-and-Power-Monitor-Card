@@ -139,7 +139,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       if (baseName && friendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && friendlyName.length > baseName.length) {
         friendlyName = friendlyName.substring(baseName.length).trim();
       }
-      if (this.config.remove_strings) {
+      if (this.config && this.config.remove_strings) {
         const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(Boolean);
         for (let sub of substrings) {
           if (friendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && friendlyName.length > sub.length) {
@@ -158,7 +158,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     const entityUnit = entityState.attributes.unit_of_measurement || '';
     const untrackedValue = this.getUntrackedEntityValue(entityId);
     const combinedValue = normalValue + (untrackedValue || 0);
-    const displayValue = this.config.combine_value_untracked ? combinedValue : normalValue;
+    const displayValue = this.config && this.config.combine_value_untracked ? combinedValue : normalValue;
     const total = normalValue + (untrackedValue || 0);
     const percentage = total > 0 ? Math.round((untrackedValue || 0) / total * 100) : 0;
 
@@ -189,7 +189,7 @@ class EnergyandPowerMonitorCard extends LitElement {
           if (baseName && childFriendlyName.toLowerCase().startsWith(baseName.toLowerCase() + " ") && childFriendlyName.length > baseName.length) {
             childFriendlyName = childFriendlyName.substring(baseName.length).trim();
           }
-          if (this.config.remove_strings) {
+          if (this.config && this.config.remove_strings) {
             const substrings = this.config.remove_strings.split(";").map(s => s.trim()).filter(Boolean);
             for (let sub of substrings) {
               if (childFriendlyName.toLowerCase().startsWith(sub.toLowerCase() + " ") && childFriendlyName.length > sub.length) {
@@ -202,7 +202,7 @@ class EnergyandPowerMonitorCard extends LitElement {
           const childValueRaw = parseFloat(childState.state);
           const childValue = isNaN(childValueRaw) ? 0 : childValueRaw;
           const childUntracked = this.getUntrackedEntityValue(childEntityId);
-          const childDisplayValue = this.config.combine_value_untracked ? (childValue + (childUntracked || 0)) : childValue;
+          const childDisplayValue = this.config && this.config.combine_value_untracked ? (childValue + (childUntracked || 0)) : childValue;
           const childTotal = childValue + (childUntracked || 0);
           const childPercentage = childTotal > 0 ? Math.round((childUntracked || 0) / childTotal * 100) : 0;
           tree.push({
@@ -226,7 +226,7 @@ class EnergyandPowerMonitorCard extends LitElement {
 
   // filter list by levels_to_show
   _filterTree(tree) {
-    const option = this.config.levels_to_show || "all";
+    const option = (this.config && this.config.levels_to_show) || "all";
     if (option === "selected") {
       return tree.filter(node => node.level === 0);
     } else if (option === "first") {
@@ -244,71 +244,70 @@ class EnergyandPowerMonitorCard extends LitElement {
     }
     return tree;
   }
-  
-// Split a friendly name into lines at nearest spaces, for nicer small-circle rendering.
-// Returns an array of strings (may be length 0).
-splitAtNearestSpace(text, maxLineLength = 15) {
-  if (!text) return [];
-  const words = String(text).split(' ').filter(Boolean);
-  if (words.length === 0) return [];
-  const lines = [];
-  let current = '';
 
-  for (let w of words) {
-    // if adding this word would exceed the length, push current and start new line
-    if ((current + (current ? ' ' : '') + w).length > maxLineLength) {
-      if (current) lines.push(current);
-      current = w;
-    } else {
-      current = current ? `${current} ${w}` : w;
+  // Split a friendly name into lines at nearest spaces, for nicer small-circle rendering.
+  // Returns an array of strings (may be length 0).
+  splitAtNearestSpace(text, maxLineLength = 15) {
+    if (!text) return [];
+    const words = String(text).split(' ').filter(Boolean);
+    if (words.length === 0) return [];
+    const lines = [];
+    let current = '';
+
+    for (let w of words) {
+      // if adding this word would exceed the length, push current and start new line
+      if ((current + (current ? ' ' : '') + w).length > maxLineLength) {
+        if (current) lines.push(current);
+        current = w;
+      } else {
+        current = current ? `${current} ${w}` : w;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  // Format a number according to decimal_precision; returns string
+  _formatNumber(val) {
+    // invalid / missing -> return empty string
+    if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
+
+    // Safely read decimal_precision with fallbacks
+    let rawPrecision = 1;
+    if (this && this.config && this.config.decimal_precision !== undefined) {
+      rawPrecision = this.config.decimal_precision;
+    }
+    const precision = (typeof rawPrecision === 'number') ? rawPrecision : (parseInt(rawPrecision, 10) || 1);
+    const p = Math.max(0, Math.min(3, precision)); // clamp 0..3
+
+    try {
+      // toFixed can throw if p is extremely large or not a number, but we've clamped it
+      const fixed = Number(val).toFixed(p);
+      // parseFloat removes unnecessary trailing zeros (e.g. "2.700" -> 2.7)
+      const parsed = parseFloat(fixed);
+      if (isNaN(parsed)) return String(Number(val));
+      return parsed.toString();
+    } catch (e) {
+      // fallback to simple conversion
+      const n = Number(val);
+      return isNaN(n) ? '' : n.toString();
     }
   }
-  if (current) lines.push(current);
-  return lines;
-}
 
-	// Format a number according to decimal_precision; returns string
-	_formatNumber(val) {
-	  // invalid / missing -> return empty string
-	  if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
-	
-	  // Safely read decimal_precision with fallbacks
-	  let rawPrecision = 1;
-	  if (this && this.config && this.config.decimal_precision !== undefined) {
-	    rawPrecision = this.config.decimal_precision;
-	  }
-	  const precision = (typeof rawPrecision === 'number') ? rawPrecision : (parseInt(rawPrecision, 10) || 1);
-	  const p = Math.max(0, Math.min(3, precision)); // clamp 0..3
-	
-	  try {
-	    // toFixed can throw if p is extremely large or not a number, but we've clamped it
-	    const fixed = Number(val).toFixed(p);
-	    // parseFloat removes unnecessary trailing zeros (e.g. "2.700" -> 2.7)
-	    const parsed = parseFloat(fixed);
-	    if (isNaN(parsed)) return String(Number(val));
-	    return parsed.toString();
-	  } catch (e) {
-	    // fallback to simple conversion
-	    const n = Number(val);
-	    return isNaN(n) ? '' : n.toString();
-	  }
-	}
-	
-	// Format a value + unit (unit optional)
-	_formatValue(val, unit) {
-	  const numStr = this._formatNumber(val);
-	  if (!numStr) return '';
-	  return unit ? `${numStr} ${unit}` : numStr;
-	}
-
+  // Format a value + unit (unit optional)
+  _formatValue(val, unit) {
+    const numStr = this._formatNumber(val);
+    if (!numStr) return '';
+    return unit ? `${numStr} ${unit}` : numStr;
+  }
 
   _getBorderColor(percentage, untrackedValue) {
-    const trackedColor = this.config.tracked_color || "#3CB371";
-    const untrackedColor = this.config.untracked_color || "#808080";
-    if (untrackedValue === null || isNaN(untrackedValue) || !this.config.show_untracked_values) {
+    const trackedColor = (this.config && this.config.tracked_color) || "#3CB371";
+    const untrackedColor = (this.config && this.config.untracked_color) || "#808080";
+    if (untrackedValue === null || isNaN(untrackedValue) || !(this.config && this.config.show_untracked_values)) {
       return `conic-gradient(${trackedColor} 0% 100%)`;
     }
-    if (percentage > 0 && this.config.show_untracked_values) {
+    if (percentage > 0 && this.config && this.config.show_untracked_values) {
       // show untracked portion first (0 → percentage), then tracked
       return `conic-gradient(${untrackedColor} 0% ${percentage}%, ${trackedColor} ${percentage}% 100%)`;
     }
@@ -332,19 +331,19 @@ splitAtNearestSpace(text, maxLineLength = 15) {
     const filtered = this._filterTree(treeStructure);
     const renderItems = (items) => items.map(item => {
       const marginLeft = item.level * 60;
-      const roomState = this.hass.states[item.entity_id];
+      const roomState = this.hass && this.hass.states ? this.hass.states[item.entity_id] : null;
       const showIcon = (this.config && this.config.show_icon) && roomState && roomState.attributes && roomState.attributes.icon;
       // formatted displays
-		const normalDisplay = (item.value !== null && item.value !== undefined) ? this._formatValue(item.value, item.unit) : '';
-		const untrackedDisplay = (this.config && this.config.show_untracked_values && item.untrackedValue !== null && item.untrackedValue !== undefined)
-		  ? `U: ${this._formatValue(item.untrackedValue, item.unit)}`
-		  : '';
+      const normalDisplay = (item.value !== null && item.value !== undefined) ? this._formatValue(item.value, item.unit) : '';
+      const untrackedDisplay = (this.config && this.config.show_untracked_values && item.untrackedValue !== null && item.untrackedValue !== undefined)
+        ? `U: ${this._formatValue(item.untrackedValue, item.unit)}`
+        : '';
       const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
       const circleBackground = this._getBorderColor(item.percentage, item.untrackedValue);
 
       // prepare ring width sanitized in _getStyleVariables() -> so use CSS var there
       const circleStyle = `--circle-background: ${circleBackground};`;
-      if (this.config.room_name_position === 'below' && this.config.show_name) {
+      if (this.config && this.config.room_name_position === 'below' && this.config.show_name) {
         return html`
           <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft}px;" @click="${() => this._handleEntityClick(item.entity_id)}" role="button" tabindex="0" aria-label="${item.friendly_name}">
             <div class="circle-wrapper">
@@ -375,7 +374,7 @@ splitAtNearestSpace(text, maxLineLength = 15) {
                     icon="${roomState.attributes.icon}">
                   </ha-icon>
                 ` : ''}
-                ${this.config.room_name_position === 'inside' && this.config.show_name ? html`
+                ${this.config && this.config.room_name_position === 'inside' && this.config.show_name ? html`
                   <div class="room-name ${!showIcon ? 'no-icon' : ''}">${friendlyNameDisplayInside}</div>
                 ` : ''}
                 <div class="entity-value">${normalDisplay}</div>
@@ -391,13 +390,22 @@ splitAtNearestSpace(text, maxLineLength = 15) {
 
   // sanitize ring width and clamp to half circle (with small margin)
   _getStyleVariables() {
+    // safe defaults when config missing
+    const trackedValSize = (this.config && this.config.tracked_value_size) ? this.config.tracked_value_size : '10.5px';
+    const untrackedValSize = (this.config && this.config.untracked_value_size) ? this.config.untracked_value_size : '10.5px';
+    const roomNameSize = (this.config && this.config.room_name_size) ? this.config.room_name_size : '10.5px';
+    const iconSize = (this.config && this.config.icon_size) ? this.config.icon_size : '22px';
+    const circleSize = (this.config && this.config.circle_size) ? this.config.circle_size : '80px';
+    const trackedColor = (this.config && this.config.tracked_color) ? this.config.tracked_color : '#3CB371';
+    const untrackedColor = (this.config && this.config.untracked_color) ? this.config.untracked_color : '#808080';
+    const untrackedLabelColor = (this.config && this.config.color_untracked_label) ? untrackedColor : 'grey';
+
     // Parse circle size (e.g. "80px") to number (px)
-    const circleSizeRaw = this.config.circle_size || '80px';
+    const circleSizeRaw = circleSize || '80px';
     const circleSizeNum = parseFloat(circleSizeRaw) || 80;
 
     // Parse ring width config (allow "8px" or numeric 8)
-    let rawRing = this.config.ring_width;
-    if (rawRing === undefined || rawRing === null) rawRing = '6px';
+    let rawRing = (this.config && this.config.ring_width) ? this.config.ring_width : '6px';
     const ringNum = parseFloat(rawRing) || 6;
 
     // Ensure ring is not larger than half the circle (leave a tiny margin)
@@ -405,21 +413,26 @@ splitAtNearestSpace(text, maxLineLength = 15) {
     const finalRing = Math.min(ringNum, maxRing);
 
     return `
-      --tracked-value-size: ${this.config.tracked_value_size};
-      --untracked-value-size: ${this.config.untracked_value_size};
-      --room-name-size: ${this.config.room_name_size};
-      --icon-size: ${this.config.icon_size};
-      --circle-size: ${this.config.circle_size};
-      --circle-tracked-color: ${this.config.tracked_color};
-      --circle-untracked-color: ${this.config.untracked_color};
-      --untracked-label-color: ${this.config.color_untracked_label ? this.config.untracked_color : 'grey'};
+      --tracked-value-size: ${trackedValSize};
+      --untracked-value-size: ${untrackedValSize};
+      --room-name-size: ${roomNameSize};
+      --icon-size: ${iconSize};
+      --circle-size: ${circleSize};
+      --circle-tracked-color: ${trackedColor};
+      --circle-untracked-color: ${untrackedColor};
+      --untracked-label-color: ${untrackedLabelColor};
       --ring-width: ${finalRing}px;
     `;
   }
 
   render() {
+    // guard missing config early
+    if (!this.config) {
+      return html`<ha-card><div style="padding:16px">Card not configured yet.</div></ha-card>`;
+    }
+
     const selectedRoom = this.config.room;
-    const roomState = selectedRoom ? this.hass && this.hass.states[selectedRoom] : null;
+    const roomState = selectedRoom ? (this.hass && this.hass.states ? this.hass.states[selectedRoom] : null) : null;
     if (!selectedRoom || !roomState) {
       return html`<ha-card><div style="padding:16px">No room selected or room entity not found.</div></ha-card>`;
     }
