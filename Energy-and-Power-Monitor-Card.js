@@ -245,21 +245,22 @@ class EnergyandPowerMonitorCard extends LitElement {
     return tree;
   }
 
-  splitAtNearestSpace(text, maxLineLength = 15) {
-    if (!text) return [];
-    const words = text.split(' ');
-    const lines = [];
-    let current = '';
-    for (let w of words) {
-      if ((current + w).length > maxLineLength) {
-        if (current) lines.push(current.trim());
-        current = w + ' ';
-      } else {
-        current += w + ' ';
-      }
-    }
-    if (current) lines.push(current.trim());
-    return lines;
+  // Format a number according to decimal_precision; returns string
+  _formatNumber(val) {
+    if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
+    const precision = (typeof this.config.decimal_precision === 'number') ? this.config.decimal_precision : parseInt(this.config.decimal_precision) || 1;
+    // ensure precision within 0..3
+    const p = Math.max(0, Math.min(3, precision));
+    // toFixed returns string, trim trailing zeros if precision > 0?
+    // The user asked to show e.g. 2.744 -> 2.7 by default; toFixed does that.
+    return parseFloat(Number(val).toFixed(p)).toString();
+  }
+
+  // Format a value + unit (unit optional)
+  _formatValue(val, unit) {
+    if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
+    const numStr = this._formatNumber(val);
+    return (unit ? `${numStr} ${unit}` : numStr).trim();
   }
 
   _getBorderColor(percentage, untrackedValue) {
@@ -294,10 +295,9 @@ class EnergyandPowerMonitorCard extends LitElement {
       const marginLeft = item.level * 60;
       const roomState = this.hass.states[item.entity_id];
       const showIcon = this.config.show_icon && roomState && roomState.attributes && roomState.attributes.icon;
-      // formatted displays
-      const normalDisplay = this._formatValue(item.value, item.unit);
+      const normalDisplay = (item.value !== null && item.value !== undefined) ? `${item.value} ${item.unit || ''}`.trim() : '';
       const untrackedDisplay = this.config.show_untracked_values && item.untrackedValue !== null
-        ? `U: ${this._formatValue(item.untrackedValue, item.unit)}`
+        ? `U: ${item.untrackedValue} ${item.unit || ''}`.trim()
         : '';
       const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
       const circleBackground = this._getBorderColor(item.percentage, item.untrackedValue);
