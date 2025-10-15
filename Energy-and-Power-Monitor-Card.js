@@ -294,9 +294,10 @@ class EnergyandPowerMonitorCard extends LitElement {
       const marginLeft = item.level * 60;
       const roomState = this.hass.states[item.entity_id];
       const showIcon = this.config.show_icon && roomState && roomState.attributes && roomState.attributes.icon;
-      const normalDisplay = (item.value !== null && item.value !== undefined) ? `${item.value} ${item.unit || ''}`.trim() : '';
+      // formatted displays
+      const normalDisplay = this._formatValue(item.value, item.unit);
       const untrackedDisplay = this.config.show_untracked_values && item.untrackedValue !== null
-        ? `U: ${item.untrackedValue} ${item.unit || ''}`.trim()
+        ? `U: ${this._formatValue(item.untrackedValue, item.unit)}`
         : '';
       const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
       const circleBackground = this._getBorderColor(item.percentage, item.untrackedValue);
