@@ -357,6 +357,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       --circle-tracked-color: ${this.config.tracked_color};
       --circle-untracked-color: ${this.config.untracked_color};
       --untracked-label-color: ${this.config.color_untracked_label ? this.config.untracked_color : 'grey'};
+      --ring-width: ${this.config.ring_width || '6px'};
     `;
   }
 
@@ -397,21 +398,38 @@ class EnergyandPowerMonitorCard extends LitElement {
         width: var(--circle-size, 80px);
         height: var(--circle-size, 80px);
       }
-      /* ::before consumes full area and shows the conic gradient background */
+      /* show gradient ring behind everything */
       .circle::before {
         content: "";
         position: absolute;
         inset: 0;
         border-radius: 50%;
-        border: 4px solid transparent;
+        /* this var contains the conic-gradient string we set inline */
         background: var(--circle-background, var(--circle-tracked-color, #3CB371));
         z-index: 0;
-        /* create a hole in the middle by overlaying a smaller white circle using background-clip is tricky cross-browser,
-           but the pseudo-element sits behind content; the inner content area is visually centered via .circle-content */
+        will-change: background;
       }
+
+      /* cover the center with the card background to create a donut */
+      .circle::after {
+        content: "";
+        position: absolute;
+        /* inset by ring width (so the ring thickness = --ring-width) */
+        left: var(--ring-width, 6px);
+        top: var(--ring-width, 6px);
+        right: var(--ring-width, 6px);
+        bottom: var(--ring-width, 6px);
+        border-radius: 50%;
+        /* many HA themes use different vars — include sensible fallbacks */
+        background: var(--ha-card-background, var(--card-background-color, var(--paper-card-background-color, white)));
+        z-index: 1;
+        pointer-events: none; /* avoid intercepting clicks */
+      }
+
+      /* content must be above the ::after so text/icons remain visible */
       .circle-content {
         position: relative;
-        z-index: 1;
+        z-index: 2;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -421,7 +439,11 @@ class EnergyandPowerMonitorCard extends LitElement {
         width: 100%;
         padding: 10px;
         box-sizing: border-box;
+        pointer-events: none; /* content itself shouldn't block the parent click handler */
       }
+
+      /* ensure icons/text still receive pointer events when required (e.g. tooltips) */
+      .circle-content > * { pointer-events: auto; }
       .tree-item { position: relative; margin-bottom: 8px; }
       .tree-item[data-level]:not([data-level="0"])::before {
         content: "";
