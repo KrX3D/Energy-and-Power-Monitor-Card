@@ -42,9 +42,12 @@ class EnergyandPowerMonitorCard extends LitElement {
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
+      circle_size_unit: config.circle_size_unit || "px",
       color_untracked_label: config.color_untracked_label === true,
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
       room: config.room,
+      ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
+      decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
       ...config,
     };
     this.rooms = [];
@@ -56,9 +59,6 @@ class EnergyandPowerMonitorCard extends LitElement {
   updated(changed) {
     if (changed.has('hass')) {
       if (this.hass) this._fetchRooms().catch(e => this.debugLog(e));
-    }
-    if (changed.has('config')) {
-      // nothing extra for now
     }
   }
 
