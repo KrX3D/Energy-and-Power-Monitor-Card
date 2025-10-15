@@ -42,12 +42,9 @@ class EnergyandPowerMonitorCard extends LitElement {
       room_name_size: config.room_name_size || "10.5px",
       icon_size: config.icon_size || "22px",
       circle_size: config.circle_size || "80px",
-      circle_size_unit: config.circle_size_unit || "px",
       color_untracked_label: config.color_untracked_label === true,
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
       room: config.room,
-      ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
-      decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
       ...config,
     };
     this.rooms = [];
@@ -59,6 +56,9 @@ class EnergyandPowerMonitorCard extends LitElement {
   updated(changed) {
     if (changed.has('hass')) {
       if (this.hass) this._fetchRooms().catch(e => this.debugLog(e));
+    }
+    if (changed.has('config')) {
+      // nothing extra for now
     }
   }
 
@@ -108,7 +108,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     }
   }
 
-  // Build flat tree; avoid cycles via visited set.
+  // Build a flat tree structure. Avoid cycles via visited set.
   _createTreeView(entityId, level = 0, baseName = null, visited = new Set()) {
     if (visited.has(entityId)) {
       this.debugLog(`Skipping already visited ${entityId}`);
@@ -245,22 +245,21 @@ class EnergyandPowerMonitorCard extends LitElement {
     return tree;
   }
 
-  // Format a number according to decimal_precision; returns string
-  _formatNumber(val) {
-    if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
-    const precision = (typeof this.config.decimal_precision === 'number') ? this.config.decimal_precision : parseInt(this.config.decimal_precision) || 1;
-    // ensure precision within 0..3
-    const p = Math.max(0, Math.min(3, precision));
-    // toFixed returns string, trim trailing zeros if precision > 0?
-    // The user asked to show e.g. 2.744 -> 2.7 by default; toFixed does that.
-    return parseFloat(Number(val).toFixed(p)).toString();
-  }
-
-  // Format a value + unit (unit optional)
-  _formatValue(val, unit) {
-    if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
-    const numStr = this._formatNumber(val);
-    return (unit ? `${numStr} ${unit}` : numStr).trim();
+  splitAtNearestSpace(text, maxLineLength = 15) {
+    if (!text) return [];
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+    for (let w of words) {
+      if ((current + w).length > maxLineLength) {
+        if (current) lines.push(current.trim());
+        current = w + ' ';
+      } else {
+        current += w + ' ';
+      }
+    }
+    if (current) lines.push(current.trim());
+    return lines;
   }
 
   _getBorderColor(percentage, untrackedValue) {
@@ -295,15 +294,13 @@ class EnergyandPowerMonitorCard extends LitElement {
       const marginLeft = item.level * 60;
       const roomState = this.hass.states[item.entity_id];
       const showIcon = this.config.show_icon && roomState && roomState.attributes && roomState.attributes.icon;
-      // formatted displays
-      const normalDisplay = this._formatValue(item.value, item.unit);
+      const normalDisplay = (item.value !== null && item.value !== undefined) ? `${item.value} ${item.unit || ''}`.trim() : '';
       const untrackedDisplay = this.config.show_untracked_values && item.untrackedValue !== null
-        ? `U: ${this._formatValue(item.untrackedValue, item.unit)}`
+        ? `U: ${item.untrackedValue} ${item.unit || ''}`.trim()
         : '';
       const friendlyNameDisplayInside = this.splitAtNearestSpace(item.friendly_name).map(line => html`<div class="friendly-name-line">${line}</div>`);
       const circleBackground = this._getBorderColor(item.percentage, item.untrackedValue);
-
-      // prepare ring width sanitized in _getStyleVariables() -> so use CSS var there
+      // style variable sets the gradient for ::before
       const circleStyle = `--circle-background: ${circleBackground};`;
       if (this.config.room_name_position === 'below' && this.config.show_name) {
         return html`
@@ -350,21 +347,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     return renderItems(filtered);
   }
 
-  // sanitize ring width and clamp to half circle (with small margin)
   _getStyleVariables() {
-    // Parse circle size (e.g. "80px") to number (px)
-    const circleSizeRaw = this.config.circle_size || '80px';
-    const circleSizeNum = parseFloat(circleSizeRaw) || 80;
-
-    // Parse ring width config (allow "8px" or numeric 8)
-    let rawRing = this.config.ring_width;
-    if (rawRing === undefined || rawRing === null) rawRing = '6px';
-    const ringNum = parseFloat(rawRing) || 6;
-
-    // Ensure ring is not larger than half the circle (leave a tiny margin)
-    const maxRing = Math.max(2, Math.floor(circleSizeNum / 2) - 4);
-    const finalRing = Math.min(ringNum, maxRing);
-
     return `
       --tracked-value-size: ${this.config.tracked_value_size};
       --untracked-value-size: ${this.config.untracked_value_size};
@@ -374,7 +357,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       --circle-tracked-color: ${this.config.tracked_color};
       --circle-untracked-color: ${this.config.untracked_color};
       --untracked-label-color: ${this.config.color_untracked_label ? this.config.untracked_color : 'grey'};
-      --ring-width: ${finalRing}px;
+      --ring-width: ${this.config.ring_width || '6px'};
     `;
   }
 
@@ -384,6 +367,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     if (!selectedRoom || !roomState) {
       return html`<ha-card><div style="padding:16px">No room selected or room entity not found.</div></ha-card>`;
     }
+    // build full tree (visited guard inside)
     const fullTree = this._createTreeView(selectedRoom);
     return html`
       <ha-card style="${this._getStyleVariables()}">
@@ -414,7 +398,6 @@ class EnergyandPowerMonitorCard extends LitElement {
         width: var(--circle-size, 80px);
         height: var(--circle-size, 80px);
       }
-
       /* show gradient ring behind everything */
       .circle::before {
         content: "";
@@ -514,8 +497,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       color_untracked_label: config.color_untracked_label === true,
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
       room: config.room,
-      ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
-      decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
       ...config,
     };
     this.rooms = [];
@@ -559,12 +540,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   _toggleOption(ev) {
     const option = ev.target.name;
     let value = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
-    // coerce decimal_precision to number
-    if (option === 'decimal_precision') {
-      value = parseInt(value);
-      if (isNaN(value)) value = 1;
-      value = Math.max(0, Math.min(3, value));
-    }
+    // checkboxes return boolean, select/text return string
     this._config = { ...this._config, [option]: value };
     this.fireConfigChanged();
     this.requestUpdate();
@@ -585,8 +561,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     for (let i = 50; i <= 200; i += 5) circleSizeOptions.push(i + "px");
     const iconSizeOptions = [];
     for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(i + "px");
-    const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
-    const decimalOptions = [0,1,2,3];
     const selectedRoom = this._config?.room || "";
 
     return html`
@@ -682,39 +656,18 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.room_name_size === size}">${size}</option>`)}
           </select>
         </div>
-
         <div class="option">
           <label for="icon_size">Icon Size:</label>
           <select id="icon_size" name="icon_size" @change="${this._toggleOption}">
             ${iconSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.icon_size === size}">${size}</option>`)}
           </select>
         </div>
-
         <div class="option">
           <label for="circle_size">Circle Size:</label>
           <select id="circle_size" name="circle_size" @change="${this._toggleOption}">
             ${circleSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.circle_size === size}">${size}</option>`)}
           </select>
         </div>
-
-        <!-- ring width -->
-        <div class="option">
-          <label for="ring_width">Ring Width:</label>
-          <select id="ring_width" name="ring_width" @change="${this._toggleOption}">
-            ${ringWidthOptions.map(v => html`
-              <option value="${v}" ?selected="${this._config.ring_width === v}">${v}</option>
-            `)}
-          </select>
-        </div>
-
-        <!-- decimal precision -->
-        <div class="option">
-          <label for="decimal_precision" title="Decimal places shown for numeric values">Decimal Precision:</label>
-          <select id="decimal_precision" name="decimal_precision" @change="${this._toggleOption}">
-            ${decimalOptions.map(d => html`<option value="${d}" ?selected="${this._config.decimal_precision === d}">${d}</option>`)}
-          </select>
-        </div>
-
       </div>
     `;
   }
