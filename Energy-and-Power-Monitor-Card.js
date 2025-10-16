@@ -62,6 +62,12 @@ class EnergyandPowerMonitorCard extends LitElement {
     }
   }
 
+  // helper: detect integration's untracked entity ids
+  _isUntrackedEntityId(entityId) {
+    if (!entityId) return false;
+    return /_untracked(_power|_energy)?$/i.test(entityId) || entityId.toLowerCase().includes('_untracked');
+  }
+
   async _fetchRooms() {
     this.debugLog('Fetching entity registry for rooms');
     if (!this.hass) {
@@ -71,11 +77,15 @@ class EnergyandPowerMonitorCard extends LitElement {
     try {
       const entities = await this.hass.callWS({ type: 'config/entity_registry/list' });
       this.rooms = entities
-        .filter(entity =>
-          entity.entity_id.startsWith('sensor.energy_power_monitor_') &&
-          !((this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id)
-            .toLowerCase().includes('untracked'))
-        )
+        .filter(entity => {
+          // exclude integration's internal untracked sensors by entity_id or friendly_name
+          const entityId = entity.entity_id || '';
+          const friendly = (this.hass.states[entityId]?.attributes.friendly_name || entityId).toLowerCase();
+          if (!entityId.startsWith('sensor.energy_power_monitor_')) return false;
+          if (this._isUntrackedEntityId(entityId)) return false;
+          if (friendly.includes('untracked')) return false;
+          return true;
+        })
         .map(entity => {
           let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
           friendlyName = friendlyName.replace(/ selected entities -/gi, '')
@@ -110,6 +120,12 @@ class EnergyandPowerMonitorCard extends LitElement {
 
   // Build flat tree; avoid cycles via visited set.
   _createTreeView(entityId, level = 0, baseName = null, visited = new Set()) {
+    // skip integration internal untracked sensors if encountered
+    if (this._isUntrackedEntityId(entityId)) {
+      this.debugLog(`Skipping untracked entity ${entityId}`);
+      return [];
+    }
+
     if (visited.has(entityId)) {
       this.debugLog(`Skipping already visited ${entityId}`);
       return [];
@@ -175,6 +191,11 @@ class EnergyandPowerMonitorCard extends LitElement {
     selEntities.forEach(childEntityId => {
       try {
         if (!childEntityId) return;
+        // skip integration's internal untracked entities
+        if (this._isUntrackedEntityId(childEntityId)) {
+          this.debugLog(`Skipping child untracked entity ${childEntityId}`);
+          return;
+        }
         // If child is another energy_power_monitor sensor: recurse
         if (childEntityId.startsWith('sensor.energy_power_monitor_')) {
           const childTree = this._createTreeView(childEntityId, level + 1, baseName, visited);
@@ -575,15 +596,25 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     if (this.hass) this._fetchRooms().catch(e => console.debug(e));
   }
 
+  // helper: detect integration's untracked entity ids (same logic as card)
+  _isUntrackedEntityId(entityId) {
+    if (!entityId) return false;
+    return /_untracked(_power|_energy)?$/i.test(entityId) || entityId.toLowerCase().includes('_untracked');
+  }
+
   async _fetchRooms() {
     if (!this.hass) return;
     try {
       const entities = await this.hass.callWS({ type: 'config/entity_registry/list' });
       this.rooms = entities
-        .filter(entity =>
-          entity.entity_id.startsWith('sensor.energy_power_monitor_') &&
-          !((this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id).toLowerCase().includes('untracked'))
-        )
+        .filter(entity => {
+          const entityId = entity.entity_id || '';
+          const friendly = (this.hass.states[entityId]?.attributes.friendly_name || entityId).toLowerCase();
+          if (!entityId.startsWith('sensor.energy_power_monitor_')) return false;
+          if (this._isUntrackedEntityId(entityId)) return false;
+          if (friendly.includes('untracked')) return false;
+          return true;
+        })
         .map(entity => {
           let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
           friendlyName = friendlyName.replace(/ selected entities -/gi, '')
