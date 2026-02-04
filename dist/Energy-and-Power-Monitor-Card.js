@@ -739,6 +739,12 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     const value = ev.detail?.value;
     if (!value) return;
     const nextConfig = { ...this._config, ...value };
+    if (Array.isArray(nextConfig.tracked_color)) {
+      nextConfig.tracked_color = `rgb(${nextConfig.tracked_color.join(", ")})`;
+    }
+    if (Array.isArray(nextConfig.untracked_color)) {
+      nextConfig.untracked_color = `rgb(${nextConfig.untracked_color.join(", ")})`;
+    }
     if (nextConfig.zone && !nextConfig.room) {
       nextConfig.room = nextConfig.zone;
     }
@@ -756,7 +762,10 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       label: zone.friendly_name,
     }));
     if (selectedZone && !zoneOptions.some(option => option.value === selectedZone)) {
-      zoneOptions.unshift({ value: selectedZone, label: selectedZone });
+      const fallbackLabel = this.hass?.states?.[selectedZone]?.attributes?.friendly_name
+        || this.hass?.states?.[selectedZone]?.attributes?.name
+        || selectedZone;
+      zoneOptions.unshift({ value: selectedZone, label: fallbackLabel });
     }
     return [
       {
@@ -854,7 +863,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           },
           {
             name: "remove_strings",
-            selector: { text: { multiline: true, rows: 2 } },
+            selector: { text: { multiline: true, rows: 1 } },
           },
           {
             name: "tracked_value_size",
@@ -1028,25 +1037,25 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       }
       .form-title {
         font-weight: 600;
-        font-size: 12.5px;
-        margin-bottom: 6px;
+        font-size: 12px;
+        margin-bottom: 4px;
       }
       ha-form {
         --mdc-typography-body2-font-size: 11px;
         --mdc-typography-subtitle1-font-size: 11.5px;
-        --ha-form-field-label-spacing: 2px;
+        --ha-form-field-label-spacing: 1px;
       }
       ha-form ha-settings-row {
         --settings-row-content-padding: 0;
       }
       ha-form ha-formfield {
-        gap: 2px;
+        gap: 1px;
       }
       ha-form ha-switch {
-        margin-inline-start: 2px;
+        margin-inline-start: 1px;
       }
       ha-form .form {
-        gap: 4px;
+        gap: 2px;
       }
       ha-form .group {
         padding: 0;
