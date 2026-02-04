@@ -845,12 +845,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     const iconSizeOptions = [];
     for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(`${i}px`);
     const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
-    const decimalOptions = [
-      { value: 0, label: '0' },
-      { value: 1, label: '1' },
-      { value: 2, label: '2' },
-      { value: 3, label: '3' }
-    ];
+    const decimalOptions = [0,1,2,3];
 
     return [
       {
@@ -892,8 +887,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           },
           {
             name: "remove_strings",
-            //selector: { text: {} },
-            selector: { text: { multiline: true, rows: 0 } },
+            selector: { text: {} },
+            //selector: { text: { multiline: true, rows: 1 } },
           },
           {
             name: "tracked_value_size",
@@ -954,7 +949,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             selector: {
               select: {
                 mode: "dropdown",
-                options: decimalOptions,
+                options: decimalOptions.map(value => ({ value, label: value })),
               },
             },
           },
