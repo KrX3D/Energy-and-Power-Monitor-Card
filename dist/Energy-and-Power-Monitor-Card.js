@@ -22,6 +22,14 @@ class EnergyMonitorLogic {
   }
 
   _initConfig(config) {
+    const normalizeColor = (value, fallback) => {
+      if (Array.isArray(value) && value.length >= 3) {
+        const [r, g, b] = value;
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+      return value || fallback;
+    };
+
     return {
       log_enabled: config.log_enabled === true,
       show_name: config.show_name !== false,
@@ -29,8 +37,8 @@ class EnergyMonitorLogic {
       show_untracked_values: config.show_untracked_values !== false,
       combine_value_untracked: config.combine_value_untracked !== false,
       levels_to_show: config.levels_to_show || "all",
-      tracked_color: config.tracked_color || "#3CB371",
-      untracked_color: config.untracked_color || "#808080",
+      tracked_color: normalizeColor(config.tracked_color, "#3CB371"),
+      untracked_color: normalizeColor(config.untracked_color, "#808080"),
       room_name_position: config.room_name_position || "below",
       tracked_value_size: config.tracked_value_size || "10.5px",
       untracked_value_size: config.untracked_value_size || "10.5px",
@@ -735,12 +743,21 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       nextConfig.room = nextConfig.zone;
     }
     this._config = nextConfig;
+    this._logic.debugEnabled = this._config.log_enabled === true;
     this.fireConfigChanged();
   }
 
   _generalFormSchema() {
     const fontSizeOptions = [];
     for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(`${i.toFixed(1)}px`);
+    const selectedZone = this._config?.zone ?? this._config?.room ?? "";
+    const zoneOptions = this.zones.map(zone => ({
+      value: zone.entity_id,
+      label: zone.friendly_name,
+    }));
+    if (selectedZone && !zoneOptions.some(option => option.value === selectedZone)) {
+      zoneOptions.unshift({ value: selectedZone, label: selectedZone });
+    }
     return [
       {
         type: "grid",
@@ -756,10 +773,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             selector: {
               select: {
                 mode: "dropdown",
-                options: this.zones.map(zone => ({
-                  value: zone.entity_id,
-                  label: zone.friendly_name,
-                })),
+                options: zoneOptions,
               },
             },
           },
@@ -816,11 +830,11 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         schema: [
           {
             name: "tracked_color",
-            selector: { color: {} },
+            selector: { color_rgb: {} },
           },
           {
             name: "untracked_color",
-            selector: { color: {} },
+            selector: { color_rgb: {} },
           },
           {
             name: "color_untracked_label",
@@ -840,7 +854,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           },
           {
             name: "remove_strings",
-            selector: { text: { multiline: true } },
+            selector: { text: { multiline: true, rows: 2 } },
           },
           {
             name: "tracked_value_size",
@@ -949,7 +963,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       case "ring_width":
         return this._t("ring_width");
       case "decimal_precision":
-        return "";
+        return this._t("decimal_precision");
       default:
         return schema.name;
     }
@@ -957,8 +971,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 
   _computeHelper(schema) {
     switch (schema.name) {
-      case "decimal_precision":
-        return this._t("decimal_precision_title");
       default:
         return "";
     }
@@ -1020,21 +1032,21 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         margin-bottom: 6px;
       }
       ha-form {
-        --mdc-typography-body2-font-size: 11.5px;
-        --mdc-typography-subtitle1-font-size: 12px;
-        --ha-form-field-label-spacing: 4px;
+        --mdc-typography-body2-font-size: 11px;
+        --mdc-typography-subtitle1-font-size: 11.5px;
+        --ha-form-field-label-spacing: 2px;
       }
       ha-form ha-settings-row {
-        --settings-row-content-padding: 2px 0;
+        --settings-row-content-padding: 0;
       }
       ha-form ha-formfield {
-        gap: 4px;
+        gap: 2px;
       }
       ha-form ha-switch {
-        margin-inline-start: 4px;
+        margin-inline-start: 2px;
       }
       ha-form .form {
-        gap: 6px;
+        gap: 4px;
       }
       ha-form .group {
         padding: 0;
