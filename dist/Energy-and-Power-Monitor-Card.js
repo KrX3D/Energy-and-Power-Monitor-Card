@@ -24,8 +24,7 @@ class EnergyMonitorLogic {
   _initConfig(config) {
     const normalizeColor = (value, fallback) => {
       if (Array.isArray(value) && value.length >= 3) {
-        const [r, g, b] = value;
-        return `rgb(${r}, ${g}, ${b})`;
+        return `#${value.map(v => Number(v).toString(16).padStart(2, "0")).join("")}`;
       }
       return value || fallback;
     };
@@ -57,6 +56,7 @@ class EnergyMonitorLogic {
 
   debugLog(msg) {
     // Debug logs appear in the browser console (F12). Search for "EnergyMonitorCore".
+    // Set log_enabled: true to enable verbose logs.
     if (this.debugEnabled) console.debug('[EnergyMonitorCore]', msg);
   }
 
@@ -741,13 +741,16 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     if (!value) return;
     const nextConfig = { ...this._config, ...value };
     if (Array.isArray(nextConfig.tracked_color)) {
-      nextConfig.tracked_color = `rgb(${nextConfig.tracked_color.join(", ")})`;
+      nextConfig.tracked_color = `#${nextConfig.tracked_color.map(v => Number(v).toString(16).padStart(2, "0")).join("")}`;
     }
     if (Array.isArray(nextConfig.untracked_color)) {
-      nextConfig.untracked_color = `rgb(${nextConfig.untracked_color.join(", ")})`;
+      nextConfig.untracked_color = `#${nextConfig.untracked_color.map(v => Number(v).toString(16).padStart(2, "0")).join("")}`;
     }
     if (nextConfig.zone && !nextConfig.room) {
       nextConfig.room = nextConfig.zone;
+    }
+    if (value.zone === undefined) {
+      nextConfig.zone = this._config.zone ?? this._config.room;
     }
     this._config = nextConfig;
     this._logic.debugEnabled = this._config.log_enabled === true;
@@ -845,11 +848,11 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         schema: [
           {
             name: "tracked_color",
-            selector: { color_rgb: {} },
+            selector: { color: {} },
           },
           {
             name: "untracked_color",
-            selector: { color_rgb: {} },
+            selector: { color: {} },
           },
           {
             name: "color_untracked_label",
@@ -930,7 +933,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             selector: {
               select: {
                 mode: "dropdown",
-                options: decimalOptions.map(value => ({ value, label: String(value) })),
+                options: decimalOptions.map(value => ({ value, label: value })),
               },
             },
           },
@@ -1049,19 +1052,22 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       ha-form {
         --mdc-typography-body2-font-size: 12.5px;
         --mdc-typography-subtitle1-font-size: 12.5px;
-        --ha-form-field-label-spacing: 2px;
+        --ha-form-field-label-spacing: 0;
       }
       ha-form ha-settings-row {
         --settings-row-content-padding: 0;
       }
       ha-form ha-formfield {
-        gap: 2px;
+        gap: 0;
       }
       ha-form ha-switch {
-        margin-inline-start: 0;
+        margin-inline-start: -6px;
       }
       ha-form .form {
-        gap: 2px;
+        gap: 1px;
+      }
+      .form-section textarea {
+        min-height: 28px;
       }
       ha-form .group {
         padding: 0;
@@ -1072,3 +1078,4 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 }
 
 customElements.define("energy-power-monitor-card-editor", EnergyandPowerMonitorCardEditor);
+
