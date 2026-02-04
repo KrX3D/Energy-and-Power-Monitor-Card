@@ -48,6 +48,7 @@ class EnergyMonitorLogic {
       color_untracked_label: config.color_untracked_label === true,
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
       zone: config.zone ?? config.room,
+      room: config.room ?? config.zone,
       ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
       decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
       ...config,
@@ -285,7 +286,9 @@ class EnergyMonitorLogic {
     const circleSize = this.config.circle_size || '80px';
     const trackedColor = this.config.tracked_color || '#3CB371';
     const untrackedColor = this.config.untracked_color || '#808080';
-    const untrackedLabelColor = this.config.color_untracked_label ? untrackedColor : 'grey';
+    const untrackedLabelColor = this.config.color_untracked_label
+      ? untrackedColor
+      : 'var(--secondary-text-color, grey)';
 
     const circleSizeNum = parseFloat(circleSize) || 80;
     const ringNum = parseFloat(this.config.ring_width) || 6;
@@ -509,7 +512,7 @@ class EnergyandPowerMonitorCard extends LitElement {
                   </ha-icon>
                 ` : ''}
                 ${this.config.room_name_position === 'inside' && this.config.show_name ? html`
-                  <div class="room-name ${!showIcon ? 'no-icon' : ''}">${friendlyNameDisplayInside}</div>
+                  <div class="room-name inside ${!showIcon ? 'no-icon' : ''}">${friendlyNameDisplayInside}</div>
                 ` : ''}
                 <div class="entity-value">${normalDisplay}</div>
                 ${untrackedDisplay ? html`<div class="untracked-value">${untrackedDisplay}</div>` : ''}
@@ -614,6 +617,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         height: 100%;
         width: 100%;
         padding: 10px;
+        gap: 2px;
         box-sizing: border-box;
         pointer-events: none;
       }
@@ -635,10 +639,14 @@ class EnergyandPowerMonitorCard extends LitElement {
         margin-top: 6px;
         white-space: normal;
         word-break: break-word;
+        color: var(--primary-text-color, #1c1c1c);
+      }
+      .room-name.inside {
+        margin-top: 0;
       }
       .tree-view { margin-top: 10px; text-align: left; }
-      .entity-value { text-align: center; font-size: var(--tracked-value-size, 10.5px); line-height: 1.1; color: white; }
-      .untracked-value { text-align: center; font-size: var(--untracked-value-size, 10.5px); line-height: 1.1; margin-top: 2px; color: var(--untracked-label-color, grey); }
+      .entity-value { text-align: center; font-size: var(--tracked-value-size, 10.5px); line-height: 1.1; color: var(--primary-text-color, #1c1c1c); }
+      .untracked-value { text-align: center; font-size: var(--untracked-value-size, 10.5px); line-height: 1.1; margin-top: 2px; color: var(--untracked-label-color, var(--secondary-text-color, grey)); }
     `;
   }
 }
@@ -933,7 +941,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             selector: {
               select: {
                 mode: "dropdown",
-                options: decimalOptions.map(value => ({ value, label: value })),
+                options: decimalOptions.map(value => ({ value, label: `${value}` })),
               },
             },
           },
@@ -1078,4 +1086,3 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 }
 
 customElements.define("energy-power-monitor-card-editor", EnergyandPowerMonitorCardEditor);
-
