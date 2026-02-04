@@ -10,6 +10,82 @@ import {
   css
 } from "https://unpkg.com/lit-element@2.3.1/lit-element.js?module";
 
+const TRANSLATIONS = {
+  en: {
+    card_not_configured: "Card not configured yet.",
+    no_zone_selected: "No zone selected or zone entity not found.",
+    general_options: "General Options",
+    style_options: "Style Options",
+    select_zone: "Select Zone:",
+    show_name: "Show Name:",
+    show_icon: "Show Icon:",
+    show_untracked_values: "Show Untracked Values:",
+    combine_untracked_values: "Combine Untracked Values:",
+    levels_to_display: "Levels to Display:",
+    levels_all: "All",
+    levels_selected: "Only Selected",
+    levels_parents: "All Parents",
+    levels_first: "1st Level Max",
+    tracked_color: "Tracked Color:",
+    untracked_color: "Untracked Color:",
+    color_untracked_label: "Color Untracked Label:",
+    zone_name_position: "Zone Name Position:",
+    position_inside: "Inside",
+    position_below: "Below",
+    remove_prefix: "Remove prefix (sep. by ';'):",
+    remove_prefix_title: "Enter prefix(s) to remove (separated by ';') from child names",
+    tracked_value_size: "Tracked Value Size:",
+    untracked_value_size: "Untracked Value Size:",
+    zone_name_size: "Zone Name Size:",
+    icon_size: "Icon Size:",
+    circle_size: "Circle Size:",
+    ring_width: "Ring Width:",
+    decimal_precision: "Decimal Precision:",
+    decimal_precision_title: "Decimal places shown for numeric values",
+  },
+  de: {
+    card_not_configured: "Karte ist noch nicht konfiguriert.",
+    no_zone_selected: "Keine Zone ausgewählt oder Zonen-Entität nicht gefunden.",
+    general_options: "Allgemeine Optionen",
+    style_options: "Stiloptionen",
+    select_zone: "Zone auswählen:",
+    show_name: "Namen anzeigen:",
+    show_icon: "Symbol anzeigen:",
+    show_untracked_values: "Nicht erfasste Werte anzeigen:",
+    combine_untracked_values: "Nicht erfasste Werte kombinieren:",
+    levels_to_display: "Ebenen anzeigen:",
+    levels_all: "Alle",
+    levels_selected: "Nur ausgewählte",
+    levels_parents: "Alle Eltern",
+    levels_first: "Max. 1. Ebene",
+    tracked_color: "Erfasste Farbe:",
+    untracked_color: "Nicht erfasste Farbe:",
+    color_untracked_label: "Label-Farbe für nicht erfasste Werte:",
+    zone_name_position: "Position des Zonennamens:",
+    position_inside: "Innen",
+    position_below: "Unten",
+    remove_prefix: "Präfix entfernen (getrennt durch ';'):",
+    remove_prefix_title: "Präfix(e) entfernen (getrennt durch ';') aus Kindnamen",
+    tracked_value_size: "Größe erfasster Werte:",
+    untracked_value_size: "Größe nicht erfasster Werte:",
+    zone_name_size: "Größe Zonenname:",
+    icon_size: "Symbolgröße:",
+    circle_size: "Kreisgröße:",
+    ring_width: "Ringbreite:",
+    decimal_precision: "Dezimalstellen:",
+    decimal_precision_title: "Anzahl der Dezimalstellen für numerische Werte",
+  },
+};
+
+const localize = (hass, key) => {
+  const language = hass?.locale?.language || hass?.language || "en";
+  const short = language.split("-")[0];
+  return TRANSLATIONS[language]?.[key]
+    || TRANSLATIONS[short]?.[key]
+    || TRANSLATIONS.en[key]
+    || key;
+};
+
 // ============================================================================
 // CORE LOGIC - EnergyMonitorLogic Class
 // ============================================================================
@@ -21,6 +97,7 @@ class EnergyMonitorLogic {
   }
 
   _initConfig(config) {
+    const zone = config.zone ?? config.room;
     return {
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
@@ -38,7 +115,7 @@ class EnergyMonitorLogic {
       circle_size_unit: config.circle_size_unit || "px",
       color_untracked_label: config.color_untracked_label === true,
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
-      room: config.room,
+      zone,
       ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
       decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
       ...config,
@@ -269,7 +346,7 @@ class EnergyMonitorLogic {
   getStyleVariables() {
     const trackedValSize = this.config.tracked_value_size || '10.5px';
     const untrackedValSize = this.config.untracked_value_size || '10.5px';
-    const roomNameSize = this.config.room_name_size || '10.5px';
+    const zoneNameSize = this.config.room_name_size || '10.5px';
     const iconSize = this.config.icon_size || '22px';
     const circleSize = this.config.circle_size || '80px';
     const trackedColor = this.config.tracked_color || '#3CB371';
@@ -285,7 +362,7 @@ class EnergyMonitorLogic {
     return {
       trackedValSize,
       untrackedValSize,
-      roomNameSize,
+      zoneNameSize,
       iconSize,
       circleSize,
       trackedColor,
@@ -336,7 +413,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'energy-power-monitor-card',
   name: 'Energy and Power Monitor',
-  description: "Displays power states for selected rooms.",
+  description: "Displays power states for selected zones.",
   preview: true,
 });
 
@@ -346,7 +423,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       hass: { type: Object },
       config: { type: Object },
       treeStructure: { type: Array },
-      rooms: { type: Array },
+      zones: { type: Array },
     };
   }
 
@@ -355,28 +432,32 @@ class EnergyandPowerMonitorCard extends LitElement {
     this.debugEnabled = false;
     this.isClickHandling = false;
     this.logic = null;
-    this.rooms = [];
+    this.zones = [];
     this._entityRegistryUnsub = null;
-    this._roomsInitialized = false;
+    this._zonesInitialized = false;
   }
 
   debugLog(msg) {
     if (this.debugEnabled) console.debug('[EPM]', msg);
   }
 
+  _t(key) {
+    return localize(this.hass, key);
+  }
+
   setConfig(config) {
     this.debugLog('setConfig');
     this.logic = new EnergyMonitorLogic(config);
     this.config = this.logic.config;
-    this.rooms = [];
-    this._roomsInitialized = false;
-    if (this.hass) this._fetchRooms().catch(e => this.debugLog(e));
+    this.zones = [];
+    this._zonesInitialized = false;
+    if (this.hass) this._fetchZones().catch(e => this.debugLog(e));
   }
 
   updated(changed) {
     if (changed.has('hass')) {
-      if (this.hass && !this._roomsInitialized) {
-        this._fetchRooms().catch(e => this.debugLog(e));
+      if (this.hass && !this._zonesInitialized) {
+        this._fetchZones().catch(e => this.debugLog(e));
       }
       this._subscribeEntityRegistry();
     }
@@ -393,22 +474,22 @@ class EnergyandPowerMonitorCard extends LitElement {
   _subscribeEntityRegistry() {
     if (!this.hass || this._entityRegistryUnsub) return;
     this.hass.connection.subscribeEvents(
-      () => this._fetchRooms().catch(e => this.debugLog(e)),
+      () => this._fetchZones().catch(e => this.debugLog(e)),
       'entity_registry_updated'
     ).then(unsub => {
       this._entityRegistryUnsub = unsub;
     }).catch(err => this.debugLog('Failed to subscribe entity_registry_updated: ' + err));
   }
 
-  async _fetchRooms() {
-    this.debugLog('Fetching entity registry for rooms');
+  async _fetchZones() {
+    this.debugLog('Fetching entity registry for zones');
     if (!this.hass || !this.logic) {
       this.debugLog('hass or logic not available yet');
       return;
     }
     try {
       const entities = await this.hass.callWS({ type: 'config/entity_registry/list' });
-      this.rooms = entities
+      this.zones = entities
         .filter(entity => {
           const entityId = entity.entity_id || '';
           const friendly = (this.hass.states[entityId]?.attributes.friendly_name || entityId).toLowerCase();
@@ -426,11 +507,11 @@ class EnergyandPowerMonitorCard extends LitElement {
           return { entity_id: entity.entity_id, friendly_name: friendlyName };
         })
         .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
-      this.debugLog(`Found rooms: ${this.rooms.length}`);
-      this._roomsInitialized = true;
+      this.debugLog(`Found zones: ${this.zones.length}`);
+      this._zonesInitialized = true;
       this.requestUpdate();
     } catch (err) {
-      this.debugLog('Error fetching rooms: ' + err);
+      this.debugLog('Error fetching zones: ' + err);
     }
   }
 
@@ -450,8 +531,8 @@ class EnergyandPowerMonitorCard extends LitElement {
     const filtered = this.logic.filterTree(treeStructure);
     const renderItems = (items) => items.map(item => {
       const marginLeft = `calc(${item.level} * var(--level-indent, 48px))`;
-      const roomState = this.hass && this.hass.states ? this.hass.states[item.entity_id] : null;
-      const showIcon = (this.config.show_icon) && roomState && roomState.attributes && roomState.attributes.icon;
+      const zoneState = this.hass && this.hass.states ? this.hass.states[item.entity_id] : null;
+      const showIcon = (this.config.show_icon) && zoneState && zoneState.attributes && zoneState.attributes.icon;
       const normalDisplay = (item.value !== null && item.value !== undefined) ? this.logic.formatValue(item.value, item.unit) : '';
       const untrackedDisplay = (this.config.show_untracked_values && item.untrackedValue !== null && item.untrackedValue !== undefined)
         ? `U: ${this.logic.formatValue(item.untrackedValue, item.unit)}`
@@ -469,7 +550,7 @@ class EnergyandPowerMonitorCard extends LitElement {
                   ${showIcon ? html`
                     <ha-icon 
                       style="--mdc-icon-size: ${this.config.icon_size}; position: relative; top: -5px;"
-                      icon="${roomState.attributes.icon}">
+                      icon="${zoneState.attributes.icon}">
                     </ha-icon>
                   ` : ''}
                   <div class="entity-value">${normalDisplay}</div>
@@ -488,7 +569,7 @@ class EnergyandPowerMonitorCard extends LitElement {
                 ${showIcon ? html`
                   <ha-icon 
                     style="--mdc-icon-size: ${this.config.icon_size}; position: relative; top: -5px;"
-                    icon="${roomState.attributes.icon}">
+                    icon="${zoneState.attributes.icon}">
                   </ha-icon>
                 ` : ''}
                 ${this.config.room_name_position === 'inside' && this.config.show_name ? html`
@@ -510,7 +591,7 @@ class EnergyandPowerMonitorCard extends LitElement {
     return `
       --tracked-value-size: ${vars.trackedValSize};
       --untracked-value-size: ${vars.untrackedValSize};
-      --room-name-size: ${vars.roomNameSize};
+      --room-name-size: ${vars.zoneNameSize};
       --icon-size: ${vars.iconSize};
       --circle-size: ${vars.circleSize};
       --circle-tracked-color: ${vars.trackedColor};
@@ -523,16 +604,16 @@ class EnergyandPowerMonitorCard extends LitElement {
 
   render() {
     if (!this.config || !this.logic) {
-      return html`<ha-card><div style="padding:16px">Card not configured yet.</div></ha-card>`;
+      return html`<ha-card><div style="padding:16px">${this._t('card_not_configured')}</div></ha-card>`;
     }
 
-    const selectedRoom = this.config.room;
-    const roomState = selectedRoom ? (this.hass && this.hass.states ? this.hass.states[selectedRoom] : null) : null;
-    if (!selectedRoom || !roomState) {
-      return html`<ha-card><div style="padding:16px">No room selected or room entity not found.</div></ha-card>`;
+    const selectedZone = this.config.zone ?? this.config.room;
+    const zoneState = selectedZone ? (this.hass && this.hass.states ? this.hass.states[selectedZone] : null) : null;
+    if (!selectedZone || !zoneState) {
+      return html`<ha-card><div style="padding:16px">${this._t('no_zone_selected')}</div></ha-card>`;
     }
 
-    const fullTree = this.logic.createTreeView(selectedRoom, this.hass.states);
+    const fullTree = this.logic.createTreeView(selectedZone, this.hass.states);
     return html`
       <ha-card style="${this._getStyleVariables()}">
         <div class="container">
@@ -637,31 +718,35 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     return {
       hass: { type: Object },
       _config: { type: Object },
-      rooms: { type: Array }
+      zones: { type: Array }
     };
   }
 
   constructor() {
     super();
     this._config = {};
-    this.rooms = [];
+    this.zones = [];
     this._logic = null;
     this._entityRegistryUnsub = null;
-    this._roomsInitialized = false;
+    this._zonesInitialized = false;
+  }
+
+  _t(key) {
+    return localize(this.hass, key);
   }
 
   setConfig(config) {
     this._logic = new EnergyMonitorLogic(config);
     this._config = this._logic.config;
-    this.rooms = [];
-    this._roomsInitialized = false;
-    if (this.hass) this._fetchRooms().catch(e => console.debug(e));
+    this.zones = [];
+    this._zonesInitialized = false;
+    if (this.hass) this._fetchZones().catch(e => console.debug(e));
   }
 
   updated(changed) {
     if (changed.has('hass')) {
-      if (this.hass && !this._roomsInitialized) {
-        this._fetchRooms().catch(e => console.debug(e));
+      if (this.hass && !this._zonesInitialized) {
+        this._fetchZones().catch(e => console.debug(e));
       }
       this._subscribeEntityRegistry();
     }
@@ -678,18 +763,18 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   _subscribeEntityRegistry() {
     if (!this.hass || this._entityRegistryUnsub) return;
     this.hass.connection.subscribeEvents(
-      () => this._fetchRooms().catch(e => console.debug(e)),
+      () => this._fetchZones().catch(e => console.debug(e)),
       'entity_registry_updated'
     ).then(unsub => {
       this._entityRegistryUnsub = unsub;
     }).catch(err => console.debug('Editor subscribe failed', err));
   }
 
-  async _fetchRooms() {
+  async _fetchZones() {
     if (!this.hass || !this._logic) return;
     try {
       const entities = await this.hass.callWS({ type: 'config/entity_registry/list' });
-      this.rooms = entities
+      this.zones = entities
         .filter(entity => {
           const entityId = entity.entity_id || '';
           if (!entityId.startsWith('sensor.energy_power_monitor_')) return false;
@@ -703,20 +788,20 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           return { entity_id: entity.entity_id, friendly_name: friendlyName };
         })
         .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
-      if (!this._config.room && this.rooms.length > 0) {
-        this._config.room = this.rooms[0].entity_id;
+      if (!this._config.zone && !this._config.room && this.zones.length > 0) {
+        this._config = { ...this._config, zone: this.zones[0].entity_id };
         this.fireConfigChanged();
       }
-      this._roomsInitialized = true;
+      this._zonesInitialized = true;
       this.requestUpdate();
     } catch (err) {
-      console.debug('Editor _fetchRooms error', err);
+      console.debug('Editor _fetchZones error', err);
     }
   }
 
-  _roomChanged(ev) {
-    const selectedRoom = ev.target.value;
-    this._config = { ...this._config, room: selectedRoom };
+  _zoneChanged(ev) {
+    const selectedZone = ev.target.value;
+    this._config = { ...this._config, zone: selectedZone };
     this.fireConfigChanged();
   }
 
@@ -750,7 +835,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(i + "px");
     const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
     const decimalOptions = [0,1,2,3];
-    const selectedRoom = this._config?.room || "";
+    const selectedZone = this._config?.zone ?? this._config?.room ?? "";
 
     return html`
       <style>
@@ -763,105 +848,105 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       </style>
 
       <div class="option-group">
-        <h3>General Options</h3>
+        <h3>${this._t('general_options')}</h3>
         <div class="option">
-          <label for="room">Select Room:</label>
-          <select id="room" @change="${this._roomChanged}">
-            ${this.rooms.map(room => html`
-              <option value="${room.entity_id}" ?selected="${room.entity_id === selectedRoom}">
-                ${room.friendly_name}
+          <label for="zone">${this._t('select_zone')}</label>
+          <select id="zone" @change="${this._zoneChanged}">
+            ${this.zones.map(zone => html`
+              <option value="${zone.entity_id}" ?selected="${zone.entity_id === selectedZone}">
+                ${zone.friendly_name}
               </option>
             `)}
           </select>
         </div>
         <div class="option">
-          <label for="show_name">Show Name:</label>
+          <label for="show_name">${this._t('show_name')}</label>
           <input type="checkbox" id="show_name" name="show_name" .checked="${this._config.show_name !== false}" @change="${this._toggleOption}">
         </div>
         <div class="option">
-          <label for="show_icon">Show Icon:</label>
+          <label for="show_icon">${this._t('show_icon')}</label>
           <input type="checkbox" id="show_icon" name="show_icon" .checked="${this._config.show_icon !== false}" @change="${this._toggleOption}">
         </div>
         <div class="option">
-          <label for="show_untracked_values">Show Untracked Values:</label>
+          <label for="show_untracked_values">${this._t('show_untracked_values')}</label>
           <input type="checkbox" id="show_untracked_values" name="show_untracked_values" .checked="${this._config.show_untracked_values !== false}" @change="${this._toggleOption}">
         </div>
         <div class="option">
-          <label for="combine_value_untracked">Combine Untracked Values:</label>
+          <label for="combine_value_untracked">${this._t('combine_untracked_values')}</label>
           <input type="checkbox" id="combine_value_untracked" name="combine_value_untracked" .checked="${this._config.combine_value_untracked !== false}" @change="${this._toggleOption}">
         </div>
         <div class="option">
-          <label for="levels_to_show">Levels to Display:</label>
+          <label for="levels_to_show">${this._t('levels_to_display')}</label>
           <select id="levels_to_show" name="levels_to_show" @change="${this._toggleOption}">
-            <option value="all" ?selected="${this._config.levels_to_show === 'all'}">All</option>
-            <option value="selected" ?selected="${this._config.levels_to_show === 'selected'}">Only Selected</option>
-            <option value="parents" ?selected="${this._config.levels_to_show === 'parents'}">All Parents</option>
-            <option value="first" ?selected="${this._config.levels_to_show === 'first'}">1st Level Max</option>
+            <option value="all" ?selected="${this._config.levels_to_show === 'all'}">${this._t('levels_all')}</option>
+            <option value="selected" ?selected="${this._config.levels_to_show === 'selected'}">${this._t('levels_selected')}</option>
+            <option value="parents" ?selected="${this._config.levels_to_show === 'parents'}">${this._t('levels_parents')}</option>
+            <option value="first" ?selected="${this._config.levels_to_show === 'first'}">${this._t('levels_first')}</option>
           </select>
         </div>
       </div>
 
       <div class="option-group">
-        <h3>Style Options</h3>
+        <h3>${this._t('style_options')}</h3>
         <div class="option">
-          <label for="tracked_color">Tracked Color:</label>
+          <label for="tracked_color">${this._t('tracked_color')}</label>
           <input type="color" id="tracked_color" name="tracked_color" .value="${this._config.tracked_color}" @change="${this._toggleOption}">
         </div>
         <div class="option">
-          <label for="untracked_color">Untracked Color:</label>
+          <label for="untracked_color">${this._t('untracked_color')}</label>
           <input type="color" id="untracked_color" name="untracked_color" .value="${this._config.untracked_color}" @change="${this._toggleOption}">
         </div>
         <div class="option">
-          <label for="color_untracked_label">Color Untracked Label:</label>
+          <label for="color_untracked_label">${this._t('color_untracked_label')}</label>
           <input type="checkbox" id="color_untracked_label" name="color_untracked_label" .checked="${this._config.color_untracked_label === true}" @change="${this._toggleOption}">
         </div>
         <div class="option">
-          <label for="room_name_position">Room Name Position:</label>
+          <label for="room_name_position">${this._t('zone_name_position')}</label>
           <select id="room_name_position" name="room_name_position" @change="${this._toggleOption}">
-            <option value="inside" ?selected="${this._config.room_name_position === 'inside'}">Inside</option>
-            <option value="below" ?selected="${this._config.room_name_position === 'below'}">Below</option>
+            <option value="inside" ?selected="${this._config.room_name_position === 'inside'}">${this._t('position_inside')}</option>
+            <option value="below" ?selected="${this._config.room_name_position === 'below'}">${this._t('position_below')}</option>
           </select>
         </div>
         <div class="option">
-          <label for="remove_strings" title="Enter prefix(s) to remove (separated by ';') from child names">Remove prefix (sep. by ';'):</label>
+          <label for="remove_strings" title="${this._t('remove_prefix_title')}">${this._t('remove_prefix')}</label>
           <input type="text" id="remove_strings" name="remove_strings" .value="${this._config.remove_strings}" @change="${this._toggleOption}">
         </div>
 
         <div class="option">
-          <label for="tracked_value_size">Tracked Value Size:</label>
+          <label for="tracked_value_size">${this._t('tracked_value_size')}</label>
           <select id="tracked_value_size" name="tracked_value_size" @change="${this._toggleOption}">
             ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.tracked_value_size === size}">${size}</option>`)}
           </select>
         </div>
         <div class="option">
-          <label for="untracked_value_size">Untracked Value Size:</label>
+          <label for="untracked_value_size">${this._t('untracked_value_size')}</label>
           <select id="untracked_value_size" name="untracked_value_size" @change="${this._toggleOption}">
             ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.untracked_value_size === size}">${size}</option>`)}
           </select>
         </div>
         <div class="option">
-          <label for="room_name_size">Room Name Size:</label>
+          <label for="room_name_size">${this._t('zone_name_size')}</label>
           <select id="room_name_size" name="room_name_size" @change="${this._toggleOption}">
             ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.room_name_size === size}">${size}</option>`)}
           </select>
         </div>
 
         <div class="option">
-          <label for="icon_size">Icon Size:</label>
+          <label for="icon_size">${this._t('icon_size')}</label>
           <select id="icon_size" name="icon_size" @change="${this._toggleOption}">
             ${iconSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.icon_size === size}">${size}</option>`)}
           </select>
         </div>
 
         <div class="option">
-          <label for="circle_size">Circle Size:</label>
+          <label for="circle_size">${this._t('circle_size')}</label>
           <select id="circle_size" name="circle_size" @change="${this._toggleOption}">
             ${circleSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.circle_size === size}">${size}</option>`)}
           </select>
         </div>
 
         <div class="option">
-          <label for="ring_width">Ring Width:</label>
+          <label for="ring_width">${this._t('ring_width')}</label>
           <select id="ring_width" name="ring_width" @change="${this._toggleOption}">
             ${ringWidthOptions.map(v => html`
               <option value="${v}" ?selected="${this._config.ring_width === v}">${v}</option>
@@ -870,7 +955,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         </div>
 
         <div class="option">
-          <label for="decimal_precision" title="Decimal places shown for numeric values">Decimal Precision:</label>
+          <label for="decimal_precision" title="${this._t('decimal_precision_title')}">${this._t('decimal_precision')}</label>
           <select id="decimal_precision" name="decimal_precision" @change="${this._toggleOption}">
             ${decimalOptions.map(d => html`<option value="${d}" ?selected="${this._config.decimal_precision === d}">${d}</option>`)}
           </select>
