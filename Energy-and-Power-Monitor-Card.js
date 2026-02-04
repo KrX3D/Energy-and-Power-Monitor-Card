@@ -9,82 +9,7 @@ import {
   html,
   css
 } from "https://unpkg.com/lit-element@2.3.1/lit-element.js?module";
-
-const TRANSLATIONS = {
-  en: {
-    card_not_configured: "Card not configured yet.",
-    no_zone_selected: "No zone selected or zone entity not found.",
-    general_options: "General Options",
-    style_options: "Style Options",
-    select_zone: "Select Zone:",
-    show_name: "Show Name:",
-    show_icon: "Show Icon:",
-    show_untracked_values: "Show Untracked Values:",
-    combine_untracked_values: "Combine Untracked Values:",
-    levels_to_display: "Levels to Display:",
-    levels_all: "All",
-    levels_selected: "Only Selected",
-    levels_parents: "All Parents",
-    levels_first: "1st Level Max",
-    tracked_color: "Tracked Color:",
-    untracked_color: "Untracked Color:",
-    color_untracked_label: "Color Untracked Label:",
-    zone_name_position: "Zone Name Position:",
-    position_inside: "Inside",
-    position_below: "Below",
-    remove_prefix: "Remove prefix (sep. by ';'):",
-    remove_prefix_title: "Enter prefix(s) to remove (separated by ';') from child names",
-    tracked_value_size: "Tracked Value Size:",
-    untracked_value_size: "Untracked Value Size:",
-    zone_name_size: "Zone Name Size:",
-    icon_size: "Icon Size:",
-    circle_size: "Circle Size:",
-    ring_width: "Ring Width:",
-    decimal_precision: "Decimal Precision:",
-    decimal_precision_title: "Decimal places shown for numeric values",
-  },
-  de: {
-    card_not_configured: "Karte ist noch nicht konfiguriert.",
-    no_zone_selected: "Keine Zone ausgewählt oder Zonen-Entität nicht gefunden.",
-    general_options: "Allgemeine Optionen",
-    style_options: "Stiloptionen",
-    select_zone: "Zone auswählen:",
-    show_name: "Namen anzeigen:",
-    show_icon: "Symbol anzeigen:",
-    show_untracked_values: "Nicht erfasste Werte anzeigen:",
-    combine_untracked_values: "Nicht erfasste Werte kombinieren:",
-    levels_to_display: "Ebenen anzeigen:",
-    levels_all: "Alle",
-    levels_selected: "Nur ausgewählte",
-    levels_parents: "Alle Eltern",
-    levels_first: "Max. 1. Ebene",
-    tracked_color: "Erfasste Farbe:",
-    untracked_color: "Nicht erfasste Farbe:",
-    color_untracked_label: "Label-Farbe für nicht erfasste Werte:",
-    zone_name_position: "Position des Zonennamens:",
-    position_inside: "Innen",
-    position_below: "Unten",
-    remove_prefix: "Präfix entfernen (getrennt durch ';'):",
-    remove_prefix_title: "Präfix(e) entfernen (getrennt durch ';') aus Kindnamen",
-    tracked_value_size: "Größe erfasster Werte:",
-    untracked_value_size: "Größe nicht erfasster Werte:",
-    zone_name_size: "Größe Zonenname:",
-    icon_size: "Symbolgröße:",
-    circle_size: "Kreisgröße:",
-    ring_width: "Ringbreite:",
-    decimal_precision: "Dezimalstellen:",
-    decimal_precision_title: "Anzahl der Dezimalstellen für numerische Werte",
-  },
-};
-
-const localize = (hass, key) => {
-  const language = hass?.locale?.language || hass?.language || "en";
-  const short = language.split("-")[0];
-  return TRANSLATIONS[language]?.[key]
-    || TRANSLATIONS[short]?.[key]
-    || TRANSLATIONS.en[key]
-    || key;
-};
+import { localize } from "./energy-power-monitor-translations.js";
 
 // ============================================================================
 // CORE LOGIC - EnergyMonitorLogic Class
@@ -97,7 +22,6 @@ class EnergyMonitorLogic {
   }
 
   _initConfig(config) {
-    const zone = config.zone ?? config.room;
     return {
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
@@ -115,7 +39,7 @@ class EnergyMonitorLogic {
       circle_size_unit: config.circle_size_unit || "px",
       color_untracked_label: config.color_untracked_label === true,
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
-      zone,
+      zone: config.zone ?? config.room,
       ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
       decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
       ...config,
