@@ -9,7 +9,7 @@ import {
   html,
   css
 } from "https://unpkg.com/lit-element@2.3.1/lit-element.js?module";
-import { localize } from "./energy-power-monitor-translations.js";
+import { localize } from "./translations/index.js";
 
 // ============================================================================
 // CORE LOGIC - EnergyMonitorLogic Class
