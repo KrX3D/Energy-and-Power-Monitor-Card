@@ -887,8 +887,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           },
           {
             name: "remove_strings",
-            selector: { text: {} },
-            //selector: { text: { multiline: true, rows: 1 } },
+            //selector: { text: {} }, //only one row but not multiline
+            selector: { text: { multiline: true } },
           },
           {
             name: "tracked_value_size",
