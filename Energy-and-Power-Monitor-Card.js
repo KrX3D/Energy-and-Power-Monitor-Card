@@ -1086,23 +1086,206 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     }
   }
 
-  _zoneChanged(ev) {
-    const selectedZone = ev.target.value;
-    this._config = { ...this._config, zone: selectedZone };
+  _valueChanged(ev) {
+    const value = ev.detail?.value;
+    if (!value) return;
+    const nextConfig = { ...this._config, ...value };
+    if (nextConfig.zone && !nextConfig.room) {
+      nextConfig.room = nextConfig.zone;
+    }
+    this._config = nextConfig;
     this.fireConfigChanged();
   }
 
-  _toggleOption(ev) {
-    const option = ev.target.name;
-    let value = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
-    if (option === 'decimal_precision') {
-      value = parseInt(value);
-      if (isNaN(value)) value = 1;
-      value = Math.max(0, Math.min(3, value));
+  _haFormSchema() {
+    const fontSizeOptions = [];
+    for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(`${i.toFixed(1)}px`);
+    const circleSizeOptions = [];
+    for (let i = 50; i <= 200; i += 5) circleSizeOptions.push(`${i}px`);
+    const iconSizeOptions = [];
+    for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(`${i}px`);
+    const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
+    const decimalOptions = [0,1,2,3];
+
+    return [
+      {
+        name: "zone",
+        selector: {
+          select: {
+            options: this.zones.map(zone => ({
+              value: zone.entity_id,
+              label: zone.friendly_name,
+            })),
+          },
+        },
+      },
+      {
+        name: "show_name",
+        selector: { boolean: {} },
+      },
+      {
+        name: "show_icon",
+        selector: { boolean: {} },
+      },
+      {
+        name: "show_untracked_values",
+        selector: { boolean: {} },
+      },
+      {
+        name: "combine_value_untracked",
+        selector: { boolean: {} },
+      },
+      {
+        name: "levels_to_show",
+        selector: {
+          select: {
+            options: [
+              { value: "all", label: this._t("levels_all") },
+              { value: "selected", label: this._t("levels_selected") },
+              { value: "parents", label: this._t("levels_parents") },
+              { value: "first", label: this._t("levels_first") },
+            ],
+          },
+        },
+      },
+      {
+        name: "tracked_color",
+        selector: { text: {} },
+      },
+      {
+        name: "untracked_color",
+        selector: { text: {} },
+      },
+      {
+        name: "color_untracked_label",
+        selector: { boolean: {} },
+      },
+      {
+        name: "room_name_position",
+        selector: {
+          select: {
+            options: [
+              { value: "inside", label: this._t("position_inside") },
+              { value: "below", label: this._t("position_below") },
+            ],
+          },
+        },
+      },
+      {
+        name: "remove_strings",
+        selector: { text: {} },
+      },
+      {
+        name: "tracked_value_size",
+        selector: {
+          select: {
+            options: fontSizeOptions.map(size => ({ value: size, label: size })),
+          },
+        },
+      },
+      {
+        name: "untracked_value_size",
+        selector: {
+          select: {
+            options: fontSizeOptions.map(size => ({ value: size, label: size })),
+          },
+        },
+      },
+      {
+        name: "room_name_size",
+        selector: {
+          select: {
+            options: fontSizeOptions.map(size => ({ value: size, label: size })),
+          },
+        },
+      },
+      {
+        name: "icon_size",
+        selector: {
+          select: {
+            options: iconSizeOptions.map(size => ({ value: size, label: size })),
+          },
+        },
+      },
+      {
+        name: "circle_size",
+        selector: {
+          select: {
+            options: circleSizeOptions.map(size => ({ value: size, label: size })),
+          },
+        },
+      },
+      {
+        name: "ring_width",
+        selector: {
+          select: {
+            options: ringWidthOptions.map(value => ({ value, label: value })),
+          },
+        },
+      },
+      {
+        name: "decimal_precision",
+        selector: {
+          select: {
+            options: decimalOptions.map(value => ({ value, label: String(value) })),
+          },
+        },
+      },
+    ];
+  }
+
+  _computeLabel(schema) {
+    switch (schema.name) {
+      case "zone":
+        return this._t("select_zone");
+      case "show_name":
+        return this._t("show_name");
+      case "show_icon":
+        return this._t("show_icon");
+      case "show_untracked_values":
+        return this._t("show_untracked_values");
+      case "combine_value_untracked":
+        return this._t("combine_untracked_values");
+      case "levels_to_show":
+        return this._t("levels_to_display");
+      case "tracked_color":
+        return this._t("tracked_color");
+      case "untracked_color":
+        return this._t("untracked_color");
+      case "color_untracked_label":
+        return this._t("color_untracked_label");
+      case "room_name_position":
+        return this._t("zone_name_position");
+      case "remove_strings":
+        return this._t("remove_prefix");
+      case "tracked_value_size":
+        return this._t("tracked_value_size");
+      case "untracked_value_size":
+        return this._t("untracked_value_size");
+      case "room_name_size":
+        return this._t("zone_name_size");
+      case "icon_size":
+        return this._t("icon_size");
+      case "circle_size":
+        return this._t("circle_size");
+      case "ring_width":
+        return this._t("ring_width");
+      case "decimal_precision":
+        return this._t("decimal_precision");
+      default:
+        return schema.name;
     }
-    this._config = { ...this._config, [option]: value };
-    this.fireConfigChanged();
-    this.requestUpdate();
+  }
+
+  _computeHelper(schema) {
+    switch (schema.name) {
+      case "remove_strings":
+        return this._t("remove_prefix_title");
+      case "decimal_precision":
+        return this._t("decimal_precision_title");
+      default:
+        return "";
+    }
   }
 
   fireConfigChanged() {
@@ -1114,141 +1297,21 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
-    const fontSizeOptions = [];
-    for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(i.toFixed(1) + "px");
-    const circleSizeOptions = [];
-    for (let i = 50; i <= 200; i += 5) circleSizeOptions.push(i + "px");
-    const iconSizeOptions = [];
-    for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(i + "px");
-    const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
-    const decimalOptions = [0,1,2,3];
     const selectedZone = this._config?.zone ?? this._config?.room ?? "";
+    const data = {
+      ...this._config,
+      zone: selectedZone,
+    };
 
     return html`
-      <style>
-        .option-group { margin-bottom: 16px; border: 1px solid var(--divider-color, #e0e0e0); padding: 8px; border-radius: 4px; }
-        .option-group h3 { margin: 0 0 8px 0; font-size: 12.5px; }
-        .option { display: flex; align-items: center; margin-bottom: 6px; }
-        .option label { flex: 0 0 200px; font-size: 12.5px; }
-        .option input[type="checkbox"] { margin-left: auto; width: 16px; height: 16px; }
-        .option input[type="color"], .option input[type="text"], .option select { flex: 1; font-size: 12.5px; padding: 2px; margin-left: 0; }
-      </style>
-
-      <div class="option-group">
-        <h3>${this._t('general_options')}</h3>
-        <div class="option">
-          <label for="zone">${this._t('select_zone')}</label>
-          <select id="zone" @change="${this._zoneChanged}">
-            ${this.zones.map(zone => html`
-              <option value="${zone.entity_id}" ?selected="${zone.entity_id === selectedZone}">
-                ${zone.friendly_name}
-              </option>
-            `)}
-          </select>
-        </div>
-        <div class="option">
-          <label for="show_name">${this._t('show_name')}</label>
-          <input type="checkbox" id="show_name" name="show_name" .checked="${this._config.show_name !== false}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="show_icon">${this._t('show_icon')}</label>
-          <input type="checkbox" id="show_icon" name="show_icon" .checked="${this._config.show_icon !== false}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="show_untracked_values">${this._t('show_untracked_values')}</label>
-          <input type="checkbox" id="show_untracked_values" name="show_untracked_values" .checked="${this._config.show_untracked_values !== false}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="combine_value_untracked">${this._t('combine_untracked_values')}</label>
-          <input type="checkbox" id="combine_value_untracked" name="combine_value_untracked" .checked="${this._config.combine_value_untracked !== false}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="levels_to_show">${this._t('levels_to_display')}</label>
-          <select id="levels_to_show" name="levels_to_show" @change="${this._toggleOption}">
-            <option value="all" ?selected="${this._config.levels_to_show === 'all'}">${this._t('levels_all')}</option>
-            <option value="selected" ?selected="${this._config.levels_to_show === 'selected'}">${this._t('levels_selected')}</option>
-            <option value="parents" ?selected="${this._config.levels_to_show === 'parents'}">${this._t('levels_parents')}</option>
-            <option value="first" ?selected="${this._config.levels_to_show === 'first'}">${this._t('levels_first')}</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="option-group">
-        <h3>${this._t('style_options')}</h3>
-        <div class="option">
-          <label for="tracked_color">${this._t('tracked_color')}</label>
-          <input type="color" id="tracked_color" name="tracked_color" .value="${this._config.tracked_color}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="untracked_color">${this._t('untracked_color')}</label>
-          <input type="color" id="untracked_color" name="untracked_color" .value="${this._config.untracked_color}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="color_untracked_label">${this._t('color_untracked_label')}</label>
-          <input type="checkbox" id="color_untracked_label" name="color_untracked_label" .checked="${this._config.color_untracked_label === true}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="room_name_position">${this._t('zone_name_position')}</label>
-          <select id="room_name_position" name="room_name_position" @change="${this._toggleOption}">
-            <option value="inside" ?selected="${this._config.room_name_position === 'inside'}">${this._t('position_inside')}</option>
-            <option value="below" ?selected="${this._config.room_name_position === 'below'}">${this._t('position_below')}</option>
-          </select>
-        </div>
-        <div class="option">
-          <label for="remove_strings" title="${this._t('remove_prefix_title')}">${this._t('remove_prefix')}</label>
-          <input type="text" id="remove_strings" name="remove_strings" .value="${this._config.remove_strings}" @change="${this._toggleOption}">
-        </div>
-
-        <div class="option">
-          <label for="tracked_value_size">${this._t('tracked_value_size')}</label>
-          <select id="tracked_value_size" name="tracked_value_size" @change="${this._toggleOption}">
-            ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.tracked_value_size === size}">${size}</option>`)}
-          </select>
-        </div>
-        <div class="option">
-          <label for="untracked_value_size">${this._t('untracked_value_size')}</label>
-          <select id="untracked_value_size" name="untracked_value_size" @change="${this._toggleOption}">
-            ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.untracked_value_size === size}">${size}</option>`)}
-          </select>
-        </div>
-        <div class="option">
-          <label for="room_name_size">${this._t('zone_name_size')}</label>
-          <select id="room_name_size" name="room_name_size" @change="${this._toggleOption}">
-            ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.room_name_size === size}">${size}</option>`)}
-          </select>
-        </div>
-
-        <div class="option">
-          <label for="icon_size">${this._t('icon_size')}</label>
-          <select id="icon_size" name="icon_size" @change="${this._toggleOption}">
-            ${iconSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.icon_size === size}">${size}</option>`)}
-          </select>
-        </div>
-
-        <div class="option">
-          <label for="circle_size">${this._t('circle_size')}</label>
-          <select id="circle_size" name="circle_size" @change="${this._toggleOption}">
-            ${circleSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.circle_size === size}">${size}</option>`)}
-          </select>
-        </div>
-
-        <div class="option">
-          <label for="ring_width">${this._t('ring_width')}</label>
-          <select id="ring_width" name="ring_width" @change="${this._toggleOption}">
-            ${ringWidthOptions.map(v => html`
-              <option value="${v}" ?selected="${this._config.ring_width === v}">${v}</option>
-            `)}
-          </select>
-        </div>
-
-        <div class="option">
-          <label for="decimal_precision" title="${this._t('decimal_precision_title')}">${this._t('decimal_precision')}</label>
-          <select id="decimal_precision" name="decimal_precision" @change="${this._toggleOption}">
-            ${decimalOptions.map(d => html`<option value="${d}" ?selected="${this._config.decimal_precision === d}">${d}</option>`)}
-          </select>
-        </div>
-
-      </div>
+      <ha-form
+        .hass=${this.hass}
+        .data=${data}
+        .schema=${this._haFormSchema()}
+        .computeLabel=${this._computeLabel.bind(this)}
+        .computeHelper=${this._computeHelper.bind(this)}
+        @value-changed=${this._valueChanged}
+      ></ha-form>
     `;
   }
 
