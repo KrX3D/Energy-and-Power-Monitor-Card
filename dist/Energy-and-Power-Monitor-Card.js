@@ -971,6 +971,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       ha-form {
         --mdc-typography-body2-font-size: 12px;
         --mdc-typography-subtitle1-font-size: 12.5px;
+        --ha-form-field-label-spacing: 6px;
       }
       ha-form ha-settings-row {
         --settings-row-content-padding: 4px 0;
@@ -980,6 +981,12 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       }
       ha-form ha-switch {
         margin-inline-start: 8px;
+      }
+      ha-form .form {
+        gap: 8px;
+      }
+      ha-form .group {
+        padding: 8px 0;
       }
     `;
   }
