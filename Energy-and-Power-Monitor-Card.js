@@ -1106,12 +1106,9 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(`${i}px`);
     const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
     const decimalOptions = [0,1,2,3];
-    const onLabel = this.hass?.localize?.("ui.common.on") ?? "On";
-    const offLabel = this.hass?.localize?.("ui.common.off") ?? "Off";
-
     return [
       {
-        type: "grid",
+        type: "section",
         title: this._t("general_options"),
         schema: [
           {
@@ -1127,14 +1124,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           },
           {
             name: "show_name",
-            selector: {
-              select: {
-                options: [
-                  { value: true, label: onLabel },
-                  { value: false, label: offLabel },
-                ],
-              },
-            },
+            selector: { boolean: {} },
           },
           {
             name: "show_icon",
@@ -1164,7 +1154,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         ],
       },
       {
-        type: "grid",
+        type: "section",
         title: this._t("style_options"),
         schema: [
           {
@@ -1292,7 +1282,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       case "ring_width":
         return this._t("ring_width");
       case "decimal_precision":
-        return this._t("decimal_precision");
+        return "";
       default:
         return schema.name;
     }
