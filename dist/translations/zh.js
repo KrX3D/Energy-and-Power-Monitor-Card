@@ -6,6 +6,7 @@ export const TRANSLATIONS = {
     style_options: "样式选项",
     select_zone: "选择区域：",
     show_name: "显示名称：",
+    log_enabled: "启用调试日志：",
     show_icon: "显示图标：",
     show_untracked_values: "显示未跟踪数值：",
     combine_untracked_values: "合并未跟踪数值：",

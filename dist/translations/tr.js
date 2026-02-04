@@ -6,6 +6,7 @@ export const TRANSLATIONS = {
     style_options: "Stil seçenekleri",
     select_zone: "Bölge seç:",
     show_name: "Adı göster:",
+    log_enabled: "Hata ayıklama günlüklerini etkinleştir:",
     show_icon: "Simgeyi göster:",
     show_untracked_values: "Takip edilmeyen değerleri göster:",
     combine_untracked_values: "Takip edilmeyen değerleri birleştir:",

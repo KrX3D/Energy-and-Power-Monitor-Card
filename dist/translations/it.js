@@ -6,6 +6,7 @@ export const TRANSLATIONS = {
     style_options: "Opzioni di stile",
     select_zone: "Seleziona zona:",
     show_name: "Mostra nome:",
+    log_enabled: "Abilita log di debug:",
     show_icon: "Mostra icona:",
     show_untracked_values: "Mostra valori non tracciati:",
     combine_untracked_values: "Combina valori non tracciati:",

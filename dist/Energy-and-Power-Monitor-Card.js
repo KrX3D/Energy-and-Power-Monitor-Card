@@ -23,6 +23,7 @@ class EnergyMonitorLogic {
 
   _initConfig(config) {
     return {
+      log_enabled: config.log_enabled === true,
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
@@ -373,6 +374,8 @@ class EnergyandPowerMonitorCard extends LitElement {
     this.debugLog('setConfig');
     this.logic = new EnergyMonitorLogic(config);
     this.config = this.logic.config;
+    this.logic.debugEnabled = this.config.log_enabled === true;
+    this.debugEnabled = this.config.log_enabled === true;
     this.zones = [];
     this._zonesInitialized = false;
     if (this.hass) this._fetchZones().catch(e => this.debugLog(e));
@@ -662,6 +665,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   setConfig(config) {
     this._logic = new EnergyMonitorLogic(config);
     this._config = this._logic.config;
+    this._logic.debugEnabled = this._config.log_enabled === true;
     this.zones = [];
     this._zonesInitialized = false;
     if (this.hass) this._fetchZones().catch(e => console.debug(e));
@@ -734,26 +738,24 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     this.fireConfigChanged();
   }
 
-  _haFormSchema() {
+  _generalFormSchema() {
     const fontSizeOptions = [];
     for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(`${i.toFixed(1)}px`);
-    const circleSizeOptions = [];
-    for (let i = 50; i <= 200; i += 5) circleSizeOptions.push(`${i}px`);
-    const iconSizeOptions = [];
-    for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(`${i}px`);
-    const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
-    const decimalOptions = [0,1,2,3];
     return [
       {
         type: "grid",
-        title: this._t("general_options"),
         columns: 1,
         column_min_width: "100%",
         schema: [
           {
+            name: "log_enabled",
+            selector: { boolean: {} },
+          },
+          {
             name: "zone",
             selector: {
               select: {
+                mode: "dropdown",
                 options: this.zones.map(zone => ({
                   value: zone.entity_id,
                   label: zone.friendly_name,
@@ -781,6 +783,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             name: "levels_to_show",
             selector: {
               select: {
+                mode: "dropdown",
                 options: [
                   { value: "all", label: this._t("levels_all") },
                   { value: "selected", label: this._t("levels_selected") },
@@ -792,9 +795,22 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           },
         ],
       },
+    ];
+  }
+
+  _styleFormSchema() {
+    const fontSizeOptions = [];
+    for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(`${i.toFixed(1)}px`);
+    const circleSizeOptions = [];
+    for (let i = 50; i <= 200; i += 5) circleSizeOptions.push(`${i}px`);
+    const iconSizeOptions = [];
+    for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(`${i}px`);
+    const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
+    const decimalOptions = [0,1,2,3];
+
+    return [
       {
         type: "grid",
-        title: this._t("style_options"),
         columns: 1,
         column_min_width: "100%",
         schema: [
@@ -814,6 +830,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             name: "room_name_position",
             selector: {
               select: {
+                mode: "dropdown",
                 options: [
                   { value: "inside", label: this._t("position_inside") },
                   { value: "below", label: this._t("position_below") },
@@ -823,12 +840,13 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           },
           {
             name: "remove_strings",
-            selector: { text: {} },
+            selector: { text: { multiline: true } },
           },
           {
             name: "tracked_value_size",
             selector: {
               select: {
+                mode: "dropdown",
                 options: fontSizeOptions.map(size => ({ value: size, label: size })),
               },
             },
@@ -837,6 +855,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             name: "untracked_value_size",
             selector: {
               select: {
+                mode: "dropdown",
                 options: fontSizeOptions.map(size => ({ value: size, label: size })),
               },
             },
@@ -845,6 +864,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             name: "room_name_size",
             selector: {
               select: {
+                mode: "dropdown",
                 options: fontSizeOptions.map(size => ({ value: size, label: size })),
               },
             },
@@ -853,6 +873,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             name: "icon_size",
             selector: {
               select: {
+                mode: "dropdown",
                 options: iconSizeOptions.map(size => ({ value: size, label: size })),
               },
             },
@@ -861,6 +882,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             name: "circle_size",
             selector: {
               select: {
+                mode: "dropdown",
                 options: circleSizeOptions.map(size => ({ value: size, label: size })),
               },
             },
@@ -869,6 +891,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             name: "ring_width",
             selector: {
               select: {
+                mode: "dropdown",
                 options: ringWidthOptions.map(value => ({ value, label: value })),
               },
             },
@@ -877,6 +900,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             name: "decimal_precision",
             selector: {
               select: {
+                mode: "dropdown",
                 options: decimalOptions.map(value => ({ value, label: String(value) })),
               },
             },
@@ -890,6 +914,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     switch (schema.name) {
       case "zone":
         return this._t("select_zone");
+      case "log_enabled":
+        return this._t("log_enabled");
       case "show_name":
         return this._t("show_name");
       case "show_icon":
@@ -954,39 +980,65 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     };
 
     return html`
-      <ha-form
-        .hass=${this.hass}
-        .data=${data}
-        .schema=${this._haFormSchema()}
-        .computeLabel=${this._computeLabel.bind(this)}
-        .computeHelper=${this._computeHelper.bind(this)}
-        @value-changed=${this._valueChanged}
-      ></ha-form>
+      <div class="form-section">
+        <div class="form-title">${this._t("general_options")}</div>
+        <ha-form
+          .hass=${this.hass}
+          .data=${data}
+          .schema=${this._generalFormSchema()}
+          .computeLabel=${this._computeLabel.bind(this)}
+          .computeHelper=${this._computeHelper.bind(this)}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+      </div>
+      <div class="form-section">
+        <div class="form-title">${this._t("style_options")}</div>
+        <ha-form
+          .hass=${this.hass}
+          .data=${data}
+          .schema=${this._styleFormSchema()}
+          .computeLabel=${this._computeLabel.bind(this)}
+          .computeHelper=${this._computeHelper.bind(this)}
+          @value-changed=${this._valueChanged}
+        ></ha-form>
+      </div>
     `;
   }
 
   static get styles() {
     return css`
       :host { display: block; }
+      .form-section {
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 6px;
+        padding: 8px;
+        margin-bottom: 10px;
+      }
+      .form-title {
+        font-weight: 600;
+        font-size: 12.5px;
+        margin-bottom: 6px;
+      }
       ha-form {
-        --mdc-typography-body2-font-size: 12px;
-        --mdc-typography-subtitle1-font-size: 12.5px;
-        --ha-form-field-label-spacing: 6px;
+        --mdc-typography-body2-font-size: 11.5px;
+        --mdc-typography-subtitle1-font-size: 12px;
+        --ha-form-field-label-spacing: 4px;
       }
       ha-form ha-settings-row {
-        --settings-row-content-padding: 4px 0;
+        --settings-row-content-padding: 2px 0;
       }
       ha-form ha-formfield {
-        gap: 6px;
+        gap: 4px;
       }
       ha-form ha-switch {
-        margin-inline-start: 8px;
+        margin-inline-start: 4px;
       }
       ha-form .form {
-        gap: 8px;
+        gap: 6px;
       }
       ha-form .group {
-        padding: 8px 0;
+        padding: 0;
+        border: 0;
       }
     `;
   }

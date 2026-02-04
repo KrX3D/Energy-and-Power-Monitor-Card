@@ -6,6 +6,7 @@ export const TRANSLATIONS = {
     style_options: "Stijlopties",
     select_zone: "Zone selecteren:",
     show_name: "Naam tonen:",
+    log_enabled: "Debuglogs inschakelen:",
     show_icon: "Pictogram tonen:",
     show_untracked_values: "Niet-getraceerde waarden tonen:",
     combine_untracked_values: "Niet-getraceerde waarden combineren:",

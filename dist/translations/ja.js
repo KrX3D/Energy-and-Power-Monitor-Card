@@ -6,6 +6,7 @@ export const TRANSLATIONS = {
     style_options: "スタイルオプション",
     select_zone: "ゾーンを選択:",
     show_name: "名前を表示:",
+    log_enabled: "デバッグログを有効化:",
     show_icon: "アイコンを表示:",
     show_untracked_values: "未追跡の値を表示:",
     combine_untracked_values: "未追跡の値を合算:",

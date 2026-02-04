@@ -6,6 +6,7 @@ export const TRANSLATIONS = {
     style_options: "스타일 옵션",
     select_zone: "영역 선택:",
     show_name: "이름 표시:",
+    log_enabled: "디버그 로그 활성화:",
     show_icon: "아이콘 표시:",
     show_untracked_values: "미추적 값 표시:",
     combine_untracked_values: "미추적 값 합산:",

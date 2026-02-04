@@ -6,6 +6,7 @@ export const TRANSLATIONS = {
     style_options: "Opções de estilo",
     select_zone: "Selecionar zona:",
     show_name: "Mostrar nome:",
+    log_enabled: "Ativar logs de depuração:",
     show_icon: "Mostrar ícone:",
     show_untracked_values: "Mostrar valores não rastreados:",
     combine_untracked_values: "Combinar valores não rastreados:",
