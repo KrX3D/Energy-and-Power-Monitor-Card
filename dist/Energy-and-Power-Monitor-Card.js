@@ -56,6 +56,7 @@ class EnergyMonitorLogic {
   }
 
   debugLog(msg) {
+    // Debug logs appear in the browser console (F12). Search for "EnergyMonitorCore".
     if (this.debugEnabled) console.debug('[EnergyMonitorCore]', msg);
   }
 
@@ -751,6 +752,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     this._config = nextConfig;
     this._logic.debugEnabled = this._config.log_enabled === true;
     this.fireConfigChanged();
+    this.requestUpdate();
   }
 
   _generalFormSchema() {
@@ -762,10 +764,14 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       label: zone.friendly_name,
     }));
     if (selectedZone && !zoneOptions.some(option => option.value === selectedZone)) {
-      const fallbackLabel = this.hass?.states?.[selectedZone]?.attributes?.friendly_name
+      let fallbackLabel = this.hass?.states?.[selectedZone]?.attributes?.friendly_name
         || this.hass?.states?.[selectedZone]?.attributes?.name
         || selectedZone;
-      zoneOptions.unshift({ value: selectedZone, label: fallbackLabel });
+      fallbackLabel = fallbackLabel
+        .replace(/ selected entities -/gi, '')
+        .replace(/ (Power|Energy)$/gi, '')
+        .trim();
+      zoneOptions.unshift({ value: selectedZone, label: fallbackLabel || selectedZone });
     }
     return [
       {
@@ -1037,22 +1043,22 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       }
       .form-title {
         font-weight: 600;
-        font-size: 12px;
+        font-size: 12.5px;
         margin-bottom: 4px;
       }
       ha-form {
-        --mdc-typography-body2-font-size: 11px;
-        --mdc-typography-subtitle1-font-size: 11.5px;
-        --ha-form-field-label-spacing: 1px;
+        --mdc-typography-body2-font-size: 12.5px;
+        --mdc-typography-subtitle1-font-size: 12.5px;
+        --ha-form-field-label-spacing: 2px;
       }
       ha-form ha-settings-row {
         --settings-row-content-padding: 0;
       }
       ha-form ha-formfield {
-        gap: 1px;
+        gap: 2px;
       }
       ha-form ha-switch {
-        margin-inline-start: 1px;
+        margin-inline-start: 0;
       }
       ha-form .form {
         gap: 2px;
