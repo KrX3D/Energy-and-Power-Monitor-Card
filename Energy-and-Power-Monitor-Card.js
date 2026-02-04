@@ -280,6 +280,7 @@ class EnergyMonitorLogic {
     const ringNum = parseFloat(this.config.ring_width) || 6;
     const maxRing = Math.max(2, Math.floor(circleSizeNum / 2) - 4);
     const finalRing = Math.min(ringNum, maxRing);
+    const levelIndent = Math.min(60, Math.max(24, Math.round(circleSizeNum * 0.6)));
 
     return {
       trackedValSize,
@@ -291,6 +292,7 @@ class EnergyMonitorLogic {
       untrackedColor,
       untrackedLabelColor,
       ringWidth: finalRing,
+      levelIndent,
     };
   }
 
@@ -354,6 +356,8 @@ class EnergyandPowerMonitorCard extends LitElement {
     this.isClickHandling = false;
     this.logic = null;
     this.rooms = [];
+    this._entityRegistryUnsub = null;
+    this._roomsInitialized = false;
   }
 
   debugLog(msg) {
@@ -365,13 +369,35 @@ class EnergyandPowerMonitorCard extends LitElement {
     this.logic = new EnergyMonitorLogic(config);
     this.config = this.logic.config;
     this.rooms = [];
+    this._roomsInitialized = false;
     if (this.hass) this._fetchRooms().catch(e => this.debugLog(e));
   }
 
   updated(changed) {
     if (changed.has('hass')) {
-      if (this.hass) this._fetchRooms().catch(e => this.debugLog(e));
+      if (this.hass && !this._roomsInitialized) {
+        this._fetchRooms().catch(e => this.debugLog(e));
+      }
+      this._subscribeEntityRegistry();
     }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._entityRegistryUnsub) {
+      this._entityRegistryUnsub();
+      this._entityRegistryUnsub = null;
+    }
+  }
+
+  _subscribeEntityRegistry() {
+    if (!this.hass || this._entityRegistryUnsub) return;
+    this.hass.connection.subscribeEvents(
+      () => this._fetchRooms().catch(e => this.debugLog(e)),
+      'entity_registry_updated'
+    ).then(unsub => {
+      this._entityRegistryUnsub = unsub;
+    }).catch(err => this.debugLog('Failed to subscribe entity_registry_updated: ' + err));
   }
 
   async _fetchRooms() {
@@ -401,6 +427,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         })
         .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
       this.debugLog(`Found rooms: ${this.rooms.length}`);
+      this._roomsInitialized = true;
       this.requestUpdate();
     } catch (err) {
       this.debugLog('Error fetching rooms: ' + err);
@@ -422,7 +449,7 @@ class EnergyandPowerMonitorCard extends LitElement {
   _renderTreeView(treeStructure) {
     const filtered = this.logic.filterTree(treeStructure);
     const renderItems = (items) => items.map(item => {
-      const marginLeft = item.level * 60;
+      const marginLeft = `calc(${item.level} * var(--level-indent, 48px))`;
       const roomState = this.hass && this.hass.states ? this.hass.states[item.entity_id] : null;
       const showIcon = (this.config.show_icon) && roomState && roomState.attributes && roomState.attributes.icon;
       const normalDisplay = (item.value !== null && item.value !== undefined) ? this.logic.formatValue(item.value, item.unit) : '';
@@ -435,7 +462,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       const circleStyle = `--circle-background: ${circleBackground};`;
       if (this.config.room_name_position === 'below' && this.config.show_name) {
         return html`
-          <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft}px;" @click="${() => this._handleEntityClick(item.entity_id)}" role="button" tabindex="0" aria-label="${item.friendly_name}">
+          <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft};" @click="${() => this._handleEntityClick(item.entity_id)}" role="button" tabindex="0" aria-label="${item.friendly_name}">
             <div class="circle-wrapper">
               <div class="circle" data-entity-id="${item.entity_id}" style="${circleStyle}; width: var(--circle-size); height: var(--circle-size);">
                 <div class="circle-content">
@@ -455,7 +482,7 @@ class EnergyandPowerMonitorCard extends LitElement {
         `;
       } else {
         return html`
-          <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft}px;" @click="${() => this._handleEntityClick(item.entity_id)}" role="button" tabindex="0" aria-label="${item.friendly_name}">
+          <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft};" @click="${() => this._handleEntityClick(item.entity_id)}" role="button" tabindex="0" aria-label="${item.friendly_name}">
             <div class="circle" data-entity-id="${item.entity_id}" style="${circleStyle}; width: var(--circle-size); height: var(--circle-size);">
               <div class="circle-content">
                 ${showIcon ? html`
@@ -490,6 +517,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       --circle-untracked-color: ${vars.untrackedColor};
       --untracked-label-color: ${vars.untrackedLabelColor};
       --ring-width: ${vars.ringWidth}px;
+      --level-indent: ${vars.levelIndent}px;
     `;
   }
 
@@ -578,7 +606,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       .tree-item[data-level]:not([data-level="0"])::before {
         content: "";
         position: absolute;
-        left: -28px;
+        left: calc(-0.5 * var(--level-indent, 48px));
         top: 0;
         bottom: 0;
         border-left: 2px solid var(--divider-color, #e0e0e0);
@@ -588,7 +616,8 @@ class EnergyandPowerMonitorCard extends LitElement {
         margin: 0;
         font-size: var(--room-name-size, 10.5px);
         margin-top: 6px;
-        white-space: nowrap;
+        white-space: normal;
+        word-break: break-word;
       }
       .tree-view { margin-top: 10px; text-align: left; }
       .entity-value { text-align: center; font-size: var(--tracked-value-size, 10.5px); line-height: 1.1; color: white; }
@@ -617,13 +646,43 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     this._config = {};
     this.rooms = [];
     this._logic = null;
+    this._entityRegistryUnsub = null;
+    this._roomsInitialized = false;
   }
 
   setConfig(config) {
     this._logic = new EnergyMonitorLogic(config);
     this._config = this._logic.config;
     this.rooms = [];
+    this._roomsInitialized = false;
     if (this.hass) this._fetchRooms().catch(e => console.debug(e));
+  }
+
+  updated(changed) {
+    if (changed.has('hass')) {
+      if (this.hass && !this._roomsInitialized) {
+        this._fetchRooms().catch(e => console.debug(e));
+      }
+      this._subscribeEntityRegistry();
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._entityRegistryUnsub) {
+      this._entityRegistryUnsub();
+      this._entityRegistryUnsub = null;
+    }
+  }
+
+  _subscribeEntityRegistry() {
+    if (!this.hass || this._entityRegistryUnsub) return;
+    this.hass.connection.subscribeEvents(
+      () => this._fetchRooms().catch(e => console.debug(e)),
+      'entity_registry_updated'
+    ).then(unsub => {
+      this._entityRegistryUnsub = unsub;
+    }).catch(err => console.debug('Editor subscribe failed', err));
   }
 
   async _fetchRooms() {
@@ -648,6 +707,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         this._config.room = this.rooms[0].entity_id;
         this.fireConfigChanged();
       }
+      this._roomsInitialized = true;
       this.requestUpdate();
     } catch (err) {
       console.debug('Editor _fetchRooms error', err);
