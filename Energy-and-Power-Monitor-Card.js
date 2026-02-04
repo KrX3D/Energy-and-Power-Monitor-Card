@@ -9,6 +9,7 @@ import {
   html,
   css
 } from "https://unpkg.com/lit-element@2.3.1/lit-element.js?module";
+import { localize } from "./translations/index.js";
 
 // ============================================================================
 // CORE LOGIC - EnergyMonitorLogic Class
@@ -38,7 +39,7 @@ class EnergyMonitorLogic {
       circle_size_unit: config.circle_size_unit || "px",
       color_untracked_label: config.color_untracked_label === true,
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
-      room: config.room,
+      zone: config.zone ?? config.room,
       ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
       decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
       ...config,
@@ -269,7 +270,7 @@ class EnergyMonitorLogic {
   getStyleVariables() {
     const trackedValSize = this.config.tracked_value_size || '10.5px';
     const untrackedValSize = this.config.untracked_value_size || '10.5px';
-    const roomNameSize = this.config.room_name_size || '10.5px';
+    const zoneNameSize = this.config.room_name_size || '10.5px';
     const iconSize = this.config.icon_size || '22px';
     const circleSize = this.config.circle_size || '80px';
     const trackedColor = this.config.tracked_color || '#3CB371';
@@ -280,17 +281,19 @@ class EnergyMonitorLogic {
     const ringNum = parseFloat(this.config.ring_width) || 6;
     const maxRing = Math.max(2, Math.floor(circleSizeNum / 2) - 4);
     const finalRing = Math.min(ringNum, maxRing);
+    const levelIndent = Math.min(60, Math.max(24, Math.round(circleSizeNum * 0.6)));
 
     return {
       trackedValSize,
       untrackedValSize,
-      roomNameSize,
+      zoneNameSize,
       iconSize,
       circleSize,
       trackedColor,
       untrackedColor,
       untrackedLabelColor,
       ringWidth: finalRing,
+      levelIndent,
     };
   }
 
@@ -334,7 +337,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'energy-power-monitor-card',
   name: 'Energy and Power Monitor',
-  description: "Displays power states for selected rooms.",
+  description: "Displays power states for selected zones.",
   preview: true,
 });
 
@@ -344,7 +347,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       hass: { type: Object },
       config: { type: Object },
       treeStructure: { type: Array },
-      rooms: { type: Array },
+      zones: { type: Array },
     };
   }
 
@@ -353,36 +356,64 @@ class EnergyandPowerMonitorCard extends LitElement {
     this.debugEnabled = false;
     this.isClickHandling = false;
     this.logic = null;
-    this.rooms = [];
+    this.zones = [];
+    this._entityRegistryUnsub = null;
+    this._zonesInitialized = false;
   }
 
   debugLog(msg) {
     if (this.debugEnabled) console.debug('[EPM]', msg);
   }
 
+  _t(key) {
+    return localize(this.hass, key);
+  }
+
   setConfig(config) {
     this.debugLog('setConfig');
     this.logic = new EnergyMonitorLogic(config);
     this.config = this.logic.config;
-    this.rooms = [];
-    if (this.hass) this._fetchRooms().catch(e => this.debugLog(e));
+    this.zones = [];
+    this._zonesInitialized = false;
+    if (this.hass) this._fetchZones().catch(e => this.debugLog(e));
   }
 
   updated(changed) {
     if (changed.has('hass')) {
-      if (this.hass) this._fetchRooms().catch(e => this.debugLog(e));
+      if (this.hass && !this._zonesInitialized) {
+        this._fetchZones().catch(e => this.debugLog(e));
+      }
+      this._subscribeEntityRegistry();
     }
   }
 
-  async _fetchRooms() {
-    this.debugLog('Fetching entity registry for rooms');
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._entityRegistryUnsub) {
+      this._entityRegistryUnsub();
+      this._entityRegistryUnsub = null;
+    }
+  }
+
+  _subscribeEntityRegistry() {
+    if (!this.hass || this._entityRegistryUnsub) return;
+    this.hass.connection.subscribeEvents(
+      () => this._fetchZones().catch(e => this.debugLog(e)),
+      'entity_registry_updated'
+    ).then(unsub => {
+      this._entityRegistryUnsub = unsub;
+    }).catch(err => this.debugLog('Failed to subscribe entity_registry_updated: ' + err));
+  }
+
+  async _fetchZones() {
+    this.debugLog('Fetching entity registry for zones');
     if (!this.hass || !this.logic) {
       this.debugLog('hass or logic not available yet');
       return;
     }
     try {
       const entities = await this.hass.callWS({ type: 'config/entity_registry/list' });
-      this.rooms = entities
+      this.zones = entities
         .filter(entity => {
           const entityId = entity.entity_id || '';
           const friendly = (this.hass.states[entityId]?.attributes.friendly_name || entityId).toLowerCase();
@@ -400,10 +431,11 @@ class EnergyandPowerMonitorCard extends LitElement {
           return { entity_id: entity.entity_id, friendly_name: friendlyName };
         })
         .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
-      this.debugLog(`Found rooms: ${this.rooms.length}`);
+      this.debugLog(`Found zones: ${this.zones.length}`);
+      this._zonesInitialized = true;
       this.requestUpdate();
     } catch (err) {
-      this.debugLog('Error fetching rooms: ' + err);
+      this.debugLog('Error fetching zones: ' + err);
     }
   }
 
@@ -422,9 +454,9 @@ class EnergyandPowerMonitorCard extends LitElement {
   _renderTreeView(treeStructure) {
     const filtered = this.logic.filterTree(treeStructure);
     const renderItems = (items) => items.map(item => {
-      const marginLeft = item.level * 60;
-      const roomState = this.hass && this.hass.states ? this.hass.states[item.entity_id] : null;
-      const showIcon = (this.config.show_icon) && roomState && roomState.attributes && roomState.attributes.icon;
+      const marginLeft = `calc(${item.level} * var(--level-indent, 48px))`;
+      const zoneState = this.hass && this.hass.states ? this.hass.states[item.entity_id] : null;
+      const showIcon = (this.config.show_icon) && zoneState && zoneState.attributes && zoneState.attributes.icon;
       const normalDisplay = (item.value !== null && item.value !== undefined) ? this.logic.formatValue(item.value, item.unit) : '';
       const untrackedDisplay = (this.config.show_untracked_values && item.untrackedValue !== null && item.untrackedValue !== undefined)
         ? `U: ${this.logic.formatValue(item.untrackedValue, item.unit)}`
@@ -435,14 +467,14 @@ class EnergyandPowerMonitorCard extends LitElement {
       const circleStyle = `--circle-background: ${circleBackground};`;
       if (this.config.room_name_position === 'below' && this.config.show_name) {
         return html`
-          <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft}px;" @click="${() => this._handleEntityClick(item.entity_id)}" role="button" tabindex="0" aria-label="${item.friendly_name}">
+          <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft};" @click="${() => this._handleEntityClick(item.entity_id)}" role="button" tabindex="0" aria-label="${item.friendly_name}">
             <div class="circle-wrapper">
               <div class="circle" data-entity-id="${item.entity_id}" style="${circleStyle}; width: var(--circle-size); height: var(--circle-size);">
                 <div class="circle-content">
                   ${showIcon ? html`
                     <ha-icon 
                       style="--mdc-icon-size: ${this.config.icon_size}; position: relative; top: -5px;"
-                      icon="${roomState.attributes.icon}">
+                      icon="${zoneState.attributes.icon}">
                     </ha-icon>
                   ` : ''}
                   <div class="entity-value">${normalDisplay}</div>
@@ -455,13 +487,13 @@ class EnergyandPowerMonitorCard extends LitElement {
         `;
       } else {
         return html`
-          <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft}px;" @click="${() => this._handleEntityClick(item.entity_id)}" role="button" tabindex="0" aria-label="${item.friendly_name}">
+          <div class="tree-item" data-level="${item.level}" style="margin-left: ${marginLeft};" @click="${() => this._handleEntityClick(item.entity_id)}" role="button" tabindex="0" aria-label="${item.friendly_name}">
             <div class="circle" data-entity-id="${item.entity_id}" style="${circleStyle}; width: var(--circle-size); height: var(--circle-size);">
               <div class="circle-content">
                 ${showIcon ? html`
                   <ha-icon 
                     style="--mdc-icon-size: ${this.config.icon_size}; position: relative; top: -5px;"
-                    icon="${roomState.attributes.icon}">
+                    icon="${zoneState.attributes.icon}">
                   </ha-icon>
                 ` : ''}
                 ${this.config.room_name_position === 'inside' && this.config.show_name ? html`
@@ -483,28 +515,29 @@ class EnergyandPowerMonitorCard extends LitElement {
     return `
       --tracked-value-size: ${vars.trackedValSize};
       --untracked-value-size: ${vars.untrackedValSize};
-      --room-name-size: ${vars.roomNameSize};
+      --room-name-size: ${vars.zoneNameSize};
       --icon-size: ${vars.iconSize};
       --circle-size: ${vars.circleSize};
       --circle-tracked-color: ${vars.trackedColor};
       --circle-untracked-color: ${vars.untrackedColor};
       --untracked-label-color: ${vars.untrackedLabelColor};
       --ring-width: ${vars.ringWidth}px;
+      --level-indent: ${vars.levelIndent}px;
     `;
   }
 
   render() {
     if (!this.config || !this.logic) {
-      return html`<ha-card><div style="padding:16px">Card not configured yet.</div></ha-card>`;
+      return html`<ha-card><div style="padding:16px">${this._t('card_not_configured')}</div></ha-card>`;
     }
 
-    const selectedRoom = this.config.room;
-    const roomState = selectedRoom ? (this.hass && this.hass.states ? this.hass.states[selectedRoom] : null) : null;
-    if (!selectedRoom || !roomState) {
-      return html`<ha-card><div style="padding:16px">No room selected or room entity not found.</div></ha-card>`;
+    const selectedZone = this.config.zone ?? this.config.room;
+    const zoneState = selectedZone ? (this.hass && this.hass.states ? this.hass.states[selectedZone] : null) : null;
+    if (!selectedZone || !zoneState) {
+      return html`<ha-card><div style="padding:16px">${this._t('no_zone_selected')}</div></ha-card>`;
     }
 
-    const fullTree = this.logic.createTreeView(selectedRoom, this.hass.states);
+    const fullTree = this.logic.createTreeView(selectedZone, this.hass.states);
     return html`
       <ha-card style="${this._getStyleVariables()}">
         <div class="container">
@@ -578,7 +611,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       .tree-item[data-level]:not([data-level="0"])::before {
         content: "";
         position: absolute;
-        left: -28px;
+        left: calc(-0.5 * var(--level-indent, 48px));
         top: 0;
         bottom: 0;
         border-left: 2px solid var(--divider-color, #e0e0e0);
@@ -588,7 +621,8 @@ class EnergyandPowerMonitorCard extends LitElement {
         margin: 0;
         font-size: var(--room-name-size, 10.5px);
         margin-top: 6px;
-        white-space: nowrap;
+        white-space: normal;
+        word-break: break-word;
       }
       .tree-view { margin-top: 10px; text-align: left; }
       .entity-value { text-align: center; font-size: var(--tracked-value-size, 10.5px); line-height: 1.1; color: white; }
@@ -608,29 +642,63 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     return {
       hass: { type: Object },
       _config: { type: Object },
-      rooms: { type: Array }
+      zones: { type: Array }
     };
   }
 
   constructor() {
     super();
     this._config = {};
-    this.rooms = [];
+    this.zones = [];
     this._logic = null;
+    this._entityRegistryUnsub = null;
+    this._zonesInitialized = false;
+  }
+
+  _t(key) {
+    return localize(this.hass, key);
   }
 
   setConfig(config) {
     this._logic = new EnergyMonitorLogic(config);
     this._config = this._logic.config;
-    this.rooms = [];
-    if (this.hass) this._fetchRooms().catch(e => console.debug(e));
+    this.zones = [];
+    this._zonesInitialized = false;
+    if (this.hass) this._fetchZones().catch(e => console.debug(e));
   }
 
-  async _fetchRooms() {
+  updated(changed) {
+    if (changed.has('hass')) {
+      if (this.hass && !this._zonesInitialized) {
+        this._fetchZones().catch(e => console.debug(e));
+      }
+      this._subscribeEntityRegistry();
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._entityRegistryUnsub) {
+      this._entityRegistryUnsub();
+      this._entityRegistryUnsub = null;
+    }
+  }
+
+  _subscribeEntityRegistry() {
+    if (!this.hass || this._entityRegistryUnsub) return;
+    this.hass.connection.subscribeEvents(
+      () => this._fetchZones().catch(e => console.debug(e)),
+      'entity_registry_updated'
+    ).then(unsub => {
+      this._entityRegistryUnsub = unsub;
+    }).catch(err => console.debug('Editor subscribe failed', err));
+  }
+
+  async _fetchZones() {
     if (!this.hass || !this._logic) return;
     try {
       const entities = await this.hass.callWS({ type: 'config/entity_registry/list' });
-      this.rooms = entities
+      this.zones = entities
         .filter(entity => {
           const entityId = entity.entity_id || '';
           if (!entityId.startsWith('sensor.energy_power_monitor_')) return false;
@@ -644,33 +712,230 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           return { entity_id: entity.entity_id, friendly_name: friendlyName };
         })
         .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
-      if (!this._config.room && this.rooms.length > 0) {
-        this._config.room = this.rooms[0].entity_id;
+      if (!this._config.zone && !this._config.room && this.zones.length > 0) {
+        this._config = { ...this._config, zone: this.zones[0].entity_id };
         this.fireConfigChanged();
       }
+      this._zonesInitialized = true;
       this.requestUpdate();
     } catch (err) {
-      console.debug('Editor _fetchRooms error', err);
+      console.debug('Editor _fetchZones error', err);
     }
   }
 
-  _roomChanged(ev) {
-    const selectedRoom = ev.target.value;
-    this._config = { ...this._config, room: selectedRoom };
+  _valueChanged(ev) {
+    const value = ev.detail?.value;
+    if (!value) return;
+    const nextConfig = { ...this._config, ...value };
+    if (nextConfig.zone && !nextConfig.room) {
+      nextConfig.room = nextConfig.zone;
+    }
+    this._config = nextConfig;
     this.fireConfigChanged();
   }
 
-  _toggleOption(ev) {
-    const option = ev.target.name;
-    let value = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
-    if (option === 'decimal_precision') {
-      value = parseInt(value);
-      if (isNaN(value)) value = 1;
-      value = Math.max(0, Math.min(3, value));
+  _haFormSchema() {
+    const fontSizeOptions = [];
+    for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(`${i.toFixed(1)}px`);
+    const circleSizeOptions = [];
+    for (let i = 50; i <= 200; i += 5) circleSizeOptions.push(`${i}px`);
+    const iconSizeOptions = [];
+    for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(`${i}px`);
+    const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
+    const decimalOptions = [0,1,2,3];
+    return [
+      {
+        type: "grid",
+        title: this._t("general_options"),
+        columns: 1,
+        column_min_width: "100%",
+        schema: [
+          {
+            name: "zone",
+            selector: {
+              select: {
+                options: this.zones.map(zone => ({
+                  value: zone.entity_id,
+                  label: zone.friendly_name,
+                })),
+              },
+            },
+          },
+          {
+            name: "show_name",
+            selector: { boolean: {} },
+          },
+          {
+            name: "show_icon",
+            selector: { boolean: {} },
+          },
+          {
+            name: "show_untracked_values",
+            selector: { boolean: {} },
+          },
+          {
+            name: "combine_value_untracked",
+            selector: { boolean: {} },
+          },
+          {
+            name: "levels_to_show",
+            selector: {
+              select: {
+                options: [
+                  { value: "all", label: this._t("levels_all") },
+                  { value: "selected", label: this._t("levels_selected") },
+                  { value: "parents", label: this._t("levels_parents") },
+                  { value: "first", label: this._t("levels_first") },
+                ],
+              },
+            },
+          },
+        ],
+      },
+      {
+        type: "grid",
+        title: this._t("style_options"),
+        columns: 1,
+        column_min_width: "100%",
+        schema: [
+          {
+            name: "tracked_color",
+            selector: { color: {} },
+          },
+          {
+            name: "untracked_color",
+            selector: { color: {} },
+          },
+          {
+            name: "color_untracked_label",
+            selector: { boolean: {} },
+          },
+          {
+            name: "room_name_position",
+            selector: {
+              select: {
+                options: [
+                  { value: "inside", label: this._t("position_inside") },
+                  { value: "below", label: this._t("position_below") },
+                ],
+              },
+            },
+          },
+          {
+            name: "remove_strings",
+            selector: { text: {} },
+          },
+          {
+            name: "tracked_value_size",
+            selector: {
+              select: {
+                options: fontSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
+          },
+          {
+            name: "untracked_value_size",
+            selector: {
+              select: {
+                options: fontSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
+          },
+          {
+            name: "room_name_size",
+            selector: {
+              select: {
+                options: fontSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
+          },
+          {
+            name: "icon_size",
+            selector: {
+              select: {
+                options: iconSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
+          },
+          {
+            name: "circle_size",
+            selector: {
+              select: {
+                options: circleSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
+          },
+          {
+            name: "ring_width",
+            selector: {
+              select: {
+                options: ringWidthOptions.map(value => ({ value, label: value })),
+              },
+            },
+          },
+          {
+            name: "decimal_precision",
+            selector: {
+              select: {
+                options: decimalOptions.map(value => ({ value, label: String(value) })),
+              },
+            },
+          },
+        ],
+      },
+    ];
+  }
+
+  _computeLabel(schema) {
+    switch (schema.name) {
+      case "zone":
+        return this._t("select_zone");
+      case "show_name":
+        return this._t("show_name");
+      case "show_icon":
+        return this._t("show_icon");
+      case "show_untracked_values":
+        return this._t("show_untracked_values");
+      case "combine_value_untracked":
+        return this._t("combine_untracked_values");
+      case "levels_to_show":
+        return this._t("levels_to_display");
+      case "tracked_color":
+        return this._t("tracked_color");
+      case "untracked_color":
+        return this._t("untracked_color");
+      case "color_untracked_label":
+        return this._t("color_untracked_label");
+      case "room_name_position":
+        return this._t("zone_name_position");
+      case "remove_strings":
+        return this._t("remove_prefix");
+      case "tracked_value_size":
+        return this._t("tracked_value_size");
+      case "untracked_value_size":
+        return this._t("untracked_value_size");
+      case "room_name_size":
+        return this._t("zone_name_size");
+      case "icon_size":
+        return this._t("icon_size");
+      case "circle_size":
+        return this._t("circle_size");
+      case "ring_width":
+        return this._t("ring_width");
+      case "decimal_precision":
+        return "";
+      default:
+        return schema.name;
     }
-    this._config = { ...this._config, [option]: value };
-    this.fireConfigChanged();
-    this.requestUpdate();
+  }
+
+  _computeHelper(schema) {
+    switch (schema.name) {
+      case "decimal_precision":
+        return this._t("decimal_precision_title");
+      default:
+        return "";
+    }
   }
 
   fireConfigChanged() {
@@ -682,147 +947,40 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
-    const fontSizeOptions = [];
-    for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(i.toFixed(1) + "px");
-    const circleSizeOptions = [];
-    for (let i = 50; i <= 200; i += 5) circleSizeOptions.push(i + "px");
-    const iconSizeOptions = [];
-    for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(i + "px");
-    const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
-    const decimalOptions = [0,1,2,3];
-    const selectedRoom = this._config?.room || "";
+    const selectedZone = this._config?.zone ?? this._config?.room ?? "";
+    const data = {
+      ...this._config,
+      zone: selectedZone,
+    };
 
     return html`
-      <style>
-        .option-group { margin-bottom: 16px; border: 1px solid var(--divider-color, #e0e0e0); padding: 8px; border-radius: 4px; }
-        .option-group h3 { margin: 0 0 8px 0; font-size: 12.5px; }
-        .option { display: flex; align-items: center; margin-bottom: 6px; }
-        .option label { flex: 0 0 200px; font-size: 12.5px; }
-        .option input[type="checkbox"] { margin-left: auto; width: 16px; height: 16px; }
-        .option input[type="color"], .option input[type="text"], .option select { flex: 1; font-size: 12.5px; padding: 2px; margin-left: 0; }
-      </style>
-
-      <div class="option-group">
-        <h3>General Options</h3>
-        <div class="option">
-          <label for="room">Select Room:</label>
-          <select id="room" @change="${this._roomChanged}">
-            ${this.rooms.map(room => html`
-              <option value="${room.entity_id}" ?selected="${room.entity_id === selectedRoom}">
-                ${room.friendly_name}
-              </option>
-            `)}
-          </select>
-        </div>
-        <div class="option">
-          <label for="show_name">Show Name:</label>
-          <input type="checkbox" id="show_name" name="show_name" .checked="${this._config.show_name !== false}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="show_icon">Show Icon:</label>
-          <input type="checkbox" id="show_icon" name="show_icon" .checked="${this._config.show_icon !== false}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="show_untracked_values">Show Untracked Values:</label>
-          <input type="checkbox" id="show_untracked_values" name="show_untracked_values" .checked="${this._config.show_untracked_values !== false}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="combine_value_untracked">Combine Untracked Values:</label>
-          <input type="checkbox" id="combine_value_untracked" name="combine_value_untracked" .checked="${this._config.combine_value_untracked !== false}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="levels_to_show">Levels to Display:</label>
-          <select id="levels_to_show" name="levels_to_show" @change="${this._toggleOption}">
-            <option value="all" ?selected="${this._config.levels_to_show === 'all'}">All</option>
-            <option value="selected" ?selected="${this._config.levels_to_show === 'selected'}">Only Selected</option>
-            <option value="parents" ?selected="${this._config.levels_to_show === 'parents'}">All Parents</option>
-            <option value="first" ?selected="${this._config.levels_to_show === 'first'}">1st Level Max</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="option-group">
-        <h3>Style Options</h3>
-        <div class="option">
-          <label for="tracked_color">Tracked Color:</label>
-          <input type="color" id="tracked_color" name="tracked_color" .value="${this._config.tracked_color}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="untracked_color">Untracked Color:</label>
-          <input type="color" id="untracked_color" name="untracked_color" .value="${this._config.untracked_color}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="color_untracked_label">Color Untracked Label:</label>
-          <input type="checkbox" id="color_untracked_label" name="color_untracked_label" .checked="${this._config.color_untracked_label === true}" @change="${this._toggleOption}">
-        </div>
-        <div class="option">
-          <label for="room_name_position">Room Name Position:</label>
-          <select id="room_name_position" name="room_name_position" @change="${this._toggleOption}">
-            <option value="inside" ?selected="${this._config.room_name_position === 'inside'}">Inside</option>
-            <option value="below" ?selected="${this._config.room_name_position === 'below'}">Below</option>
-          </select>
-        </div>
-        <div class="option">
-          <label for="remove_strings" title="Enter prefix(s) to remove (separated by ';') from child names">Remove prefix (sep. by ';'):</label>
-          <input type="text" id="remove_strings" name="remove_strings" .value="${this._config.remove_strings}" @change="${this._toggleOption}">
-        </div>
-
-        <div class="option">
-          <label for="tracked_value_size">Tracked Value Size:</label>
-          <select id="tracked_value_size" name="tracked_value_size" @change="${this._toggleOption}">
-            ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.tracked_value_size === size}">${size}</option>`)}
-          </select>
-        </div>
-        <div class="option">
-          <label for="untracked_value_size">Untracked Value Size:</label>
-          <select id="untracked_value_size" name="untracked_value_size" @change="${this._toggleOption}">
-            ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.untracked_value_size === size}">${size}</option>`)}
-          </select>
-        </div>
-        <div class="option">
-          <label for="room_name_size">Room Name Size:</label>
-          <select id="room_name_size" name="room_name_size" @change="${this._toggleOption}">
-            ${fontSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.room_name_size === size}">${size}</option>`)}
-          </select>
-        </div>
-
-        <div class="option">
-          <label for="icon_size">Icon Size:</label>
-          <select id="icon_size" name="icon_size" @change="${this._toggleOption}">
-            ${iconSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.icon_size === size}">${size}</option>`)}
-          </select>
-        </div>
-
-        <div class="option">
-          <label for="circle_size">Circle Size:</label>
-          <select id="circle_size" name="circle_size" @change="${this._toggleOption}">
-            ${circleSizeOptions.map(size => html`<option value="${size}" ?selected="${this._config.circle_size === size}">${size}</option>`)}
-          </select>
-        </div>
-
-        <div class="option">
-          <label for="ring_width">Ring Width:</label>
-          <select id="ring_width" name="ring_width" @change="${this._toggleOption}">
-            ${ringWidthOptions.map(v => html`
-              <option value="${v}" ?selected="${this._config.ring_width === v}">${v}</option>
-            `)}
-          </select>
-        </div>
-
-        <div class="option">
-          <label for="decimal_precision" title="Decimal places shown for numeric values">Decimal Precision:</label>
-          <select id="decimal_precision" name="decimal_precision" @change="${this._toggleOption}">
-            ${decimalOptions.map(d => html`<option value="${d}" ?selected="${this._config.decimal_precision === d}">${d}</option>`)}
-          </select>
-        </div>
-
-      </div>
+      <ha-form
+        .hass=${this.hass}
+        .data=${data}
+        .schema=${this._haFormSchema()}
+        .computeLabel=${this._computeLabel.bind(this)}
+        .computeHelper=${this._computeHelper.bind(this)}
+        @value-changed=${this._valueChanged}
+      ></ha-form>
     `;
   }
 
   static get styles() {
     return css`
       :host { display: block; }
+      ha-form {
+        --mdc-typography-body2-font-size: 12px;
+        --mdc-typography-subtitle1-font-size: 12.5px;
+      }
+      ha-form ha-settings-row {
+        --settings-row-content-padding: 4px 0;
+      }
+      ha-form ha-formfield {
+        gap: 6px;
+      }
+      ha-form ha-switch {
+        margin-inline-start: 8px;
+      }
     `;
   }
 }
