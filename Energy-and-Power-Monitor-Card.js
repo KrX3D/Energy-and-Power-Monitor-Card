@@ -1106,130 +1106,151 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(`${i}px`);
     const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
     const decimalOptions = [0,1,2,3];
+    const onLabel = this.hass?.localize?.("ui.common.on") ?? "On";
+    const offLabel = this.hass?.localize?.("ui.common.off") ?? "Off";
 
     return [
       {
-        name: "zone",
-        selector: {
-          select: {
-            options: this.zones.map(zone => ({
-              value: zone.entity_id,
-              label: zone.friendly_name,
-            })),
+        type: "grid",
+        title: this._t("general_options"),
+        schema: [
+          {
+            name: "zone",
+            selector: {
+              select: {
+                options: this.zones.map(zone => ({
+                  value: zone.entity_id,
+                  label: zone.friendly_name,
+                })),
+              },
+            },
           },
-        },
-      },
-      {
-        name: "show_name",
-        selector: { boolean: {} },
-      },
-      {
-        name: "show_icon",
-        selector: { boolean: {} },
-      },
-      {
-        name: "show_untracked_values",
-        selector: { boolean: {} },
-      },
-      {
-        name: "combine_value_untracked",
-        selector: { boolean: {} },
-      },
-      {
-        name: "levels_to_show",
-        selector: {
-          select: {
-            options: [
-              { value: "all", label: this._t("levels_all") },
-              { value: "selected", label: this._t("levels_selected") },
-              { value: "parents", label: this._t("levels_parents") },
-              { value: "first", label: this._t("levels_first") },
-            ],
+          {
+            name: "show_name",
+            selector: {
+              select: {
+                options: [
+                  { value: true, label: onLabel },
+                  { value: false, label: offLabel },
+                ],
+              },
+            },
           },
-        },
-      },
-      {
-        name: "tracked_color",
-        selector: { text: {} },
-      },
-      {
-        name: "untracked_color",
-        selector: { text: {} },
-      },
-      {
-        name: "color_untracked_label",
-        selector: { boolean: {} },
-      },
-      {
-        name: "room_name_position",
-        selector: {
-          select: {
-            options: [
-              { value: "inside", label: this._t("position_inside") },
-              { value: "below", label: this._t("position_below") },
-            ],
+          {
+            name: "show_icon",
+            selector: { boolean: {} },
           },
-        },
-      },
-      {
-        name: "remove_strings",
-        selector: { text: {} },
-      },
-      {
-        name: "tracked_value_size",
-        selector: {
-          select: {
-            options: fontSizeOptions.map(size => ({ value: size, label: size })),
+          {
+            name: "show_untracked_values",
+            selector: { boolean: {} },
           },
-        },
+          {
+            name: "combine_value_untracked",
+            selector: { boolean: {} },
+          },
+          {
+            name: "levels_to_show",
+            selector: {
+              select: {
+                options: [
+                  { value: "all", label: this._t("levels_all") },
+                  { value: "selected", label: this._t("levels_selected") },
+                  { value: "parents", label: this._t("levels_parents") },
+                  { value: "first", label: this._t("levels_first") },
+                ],
+              },
+            },
+          },
+        ],
       },
       {
-        name: "untracked_value_size",
-        selector: {
-          select: {
-            options: fontSizeOptions.map(size => ({ value: size, label: size })),
+        type: "grid",
+        title: this._t("style_options"),
+        schema: [
+          {
+            name: "tracked_color",
+            selector: { color: {} },
           },
-        },
-      },
-      {
-        name: "room_name_size",
-        selector: {
-          select: {
-            options: fontSizeOptions.map(size => ({ value: size, label: size })),
+          {
+            name: "untracked_color",
+            selector: { color: {} },
           },
-        },
-      },
-      {
-        name: "icon_size",
-        selector: {
-          select: {
-            options: iconSizeOptions.map(size => ({ value: size, label: size })),
+          {
+            name: "color_untracked_label",
+            selector: { boolean: {} },
           },
-        },
-      },
-      {
-        name: "circle_size",
-        selector: {
-          select: {
-            options: circleSizeOptions.map(size => ({ value: size, label: size })),
+          {
+            name: "room_name_position",
+            selector: {
+              select: {
+                options: [
+                  { value: "inside", label: this._t("position_inside") },
+                  { value: "below", label: this._t("position_below") },
+                ],
+              },
+            },
           },
-        },
-      },
-      {
-        name: "ring_width",
-        selector: {
-          select: {
-            options: ringWidthOptions.map(value => ({ value, label: value })),
+          {
+            name: "remove_strings",
+            selector: { text: {} },
           },
-        },
-      },
-      {
-        name: "decimal_precision",
-        selector: {
-          select: {
-            options: decimalOptions.map(value => ({ value, label: String(value) })),
+          {
+            name: "tracked_value_size",
+            selector: {
+              select: {
+                options: fontSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
           },
-        },
+          {
+            name: "untracked_value_size",
+            selector: {
+              select: {
+                options: fontSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
+          },
+          {
+            name: "room_name_size",
+            selector: {
+              select: {
+                options: fontSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
+          },
+          {
+            name: "icon_size",
+            selector: {
+              select: {
+                options: iconSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
+          },
+          {
+            name: "circle_size",
+            selector: {
+              select: {
+                options: circleSizeOptions.map(size => ({ value: size, label: size })),
+              },
+            },
+          },
+          {
+            name: "ring_width",
+            selector: {
+              select: {
+                options: ringWidthOptions.map(value => ({ value, label: value })),
+              },
+            },
+          },
+          {
+            name: "decimal_precision",
+            selector: {
+              select: {
+                options: decimalOptions.map(value => ({ value, label: String(value) })),
+              },
+            },
+          },
+        ],
       },
     ];
   }
@@ -1279,8 +1300,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 
   _computeHelper(schema) {
     switch (schema.name) {
-      case "remove_strings":
-        return this._t("remove_prefix_title");
       case "decimal_precision":
         return this._t("decimal_precision_title");
       default:
@@ -1318,6 +1337,19 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   static get styles() {
     return css`
       :host { display: block; }
+      ha-form {
+        --mdc-typography-body2-font-size: 12px;
+        --mdc-typography-subtitle1-font-size: 12.5px;
+      }
+      ha-form ha-settings-row {
+        --settings-row-content-padding: 4px 0;
+      }
+      ha-form ha-formfield {
+        gap: 6px;
+      }
+      ha-form ha-switch {
+        margin-inline-start: 8px;
+      }
     `;
   }
 }
