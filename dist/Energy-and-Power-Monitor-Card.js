@@ -933,7 +933,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             selector: {
               select: {
                 mode: "dropdown",
-                options: decimalOptions.map(value => ({ value, label: `${value}` })),
+                options: decimalOptions.map(value => ({ value, label: value })),
               },
             },
           },
@@ -1078,3 +1078,4 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 }
 
 customElements.define("energy-power-monitor-card-editor", EnergyandPowerMonitorCardEditor);
+
