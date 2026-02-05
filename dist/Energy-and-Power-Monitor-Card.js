@@ -858,11 +858,11 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         schema: [
           {
             name: "tracked_color",
-            selector: { color: {} },
+            selector: { color_rgb: {} },
           },
           {
             name: "untracked_color",
-            selector: { color: {} },
+            selector: { color_rgb: {} },
           },
           {
             name: "color_untracked_label",
@@ -1014,9 +1014,22 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 
   render() {
     const selectedZone = this._config?.zone ?? "";
+    const toColorArray = (value) => {
+      if (typeof value !== "string") return value;
+      const match = value.trim().match(/^#?([0-9a-fA-F]{6})$/);
+      if (!match) return value;
+      const hex = match[1];
+      return [
+        parseInt(hex.slice(0, 2), 16),
+        parseInt(hex.slice(2, 4), 16),
+        parseInt(hex.slice(4, 6), 16),
+      ];
+    };
     const data = {
       ...this._config,
       zone: selectedZone,
+      tracked_color: toColorArray(this._config?.tracked_color),
+      untracked_color: toColorArray(this._config?.untracked_color),
       decimal_precision: this._config?.decimal_precision !== undefined
         ? String(this._config.decimal_precision)
         : undefined,
@@ -1071,10 +1084,12 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         --settings-row-content-padding: 0;
         padding: 0;
         margin: 0;
+        column-gap: 0;
       }
       ha-form ha-formfield {
         gap: 0;
         margin: 0;
+        margin-inline-start: -10px;
       }
       ha-form ha-formfield .mdc-form-field {
         margin: 0;
@@ -1087,7 +1102,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         margin-inline-start: -22px;
       }
       ha-form ha-selector-boolean {
-        margin-inline-start: -10px;
+        margin-inline-start: -16px;
       }
       ha-form ha-selector-boolean ha-switch {
         margin-inline-start: -22px;
@@ -1102,6 +1117,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       ha-form ha-selector-select,
       ha-form ha-selector-boolean,
       ha-form ha-selector-color,
+      ha-form ha-selector-color_rgb,
       ha-form ha-selector-text {
         margin: 0;
         display: block;
