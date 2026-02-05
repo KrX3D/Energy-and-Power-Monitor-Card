@@ -858,11 +858,19 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         schema: [
           {
             name: "tracked_color",
-            selector: { color: {} },
+            selector: {
+              ui_color: {
+                default_color: "#3CB371",
+              },
+            },
           },
           {
             name: "untracked_color",
-            selector: { color: {} },
+            selector: {
+              ui_color: {
+                default_color: "#808080",
+              },
+            },
           },
           {
             name: "color_untracked_label",
@@ -1069,7 +1077,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       }
       ha-form ha-settings-row {
         --settings-row-content-padding: 0;
-        padding: 2px 0;
+        padding: 0;
+        margin: 0;
       }
       ha-form ha-formfield {
         gap: 0;
@@ -1083,20 +1092,21 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         line-height: 1.2;
       }
       ha-form ha-switch {
-        margin-inline-start: -14px;
+        margin-inline-start: -22px;
       }
       ha-form .form {
         gap: 0;
       }
       ha-form .root {
-        gap: 2px;
+        gap: 0;
       }
       ha-form ha-selector,
       ha-form ha-selector-select,
       ha-form ha-selector-boolean,
       ha-form ha-selector-color,
+      ha-form ha-selector-ui_color,
       ha-form ha-selector-text {
-        margin: 2px 0;
+        margin: 0;
         display: block;
       }
       ha-form ha-select {
