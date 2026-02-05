@@ -1004,6 +1004,15 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     }
   }
 
+  _handleSelectorValueChanged(ev) {
+    const tag = ev?.target?.tagName;
+    if (tag !== "HA-SELECTOR-COLOR_RGB") return;
+    const key = ev.target?.configValue || ev.target?.name;
+    const value = ev.detail?.value ?? ev.target?.value;
+    if (!key || value === undefined) return;
+    this._valueChanged({ detail: { value: { [key]: value } } });
+  }
+
   fireConfigChanged() {
     this.dispatchEvent(new CustomEvent("config-changed", {
       detail: { config: this._config },
@@ -1036,7 +1045,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     };
 
     return html`
-      <div class="form-section">
+      <div class="form-section" @value-changed=${this._handleSelectorValueChanged}>
         <div class="form-title">${this._t("general_options")}</div>
         <ha-form
           .hass=${this.hass}
@@ -1047,7 +1056,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           @value-changed=${this._valueChanged}
         ></ha-form>
       </div>
-      <div class="form-section">
+      <div class="form-section" @value-changed=${this._handleSelectorValueChanged}>
         <div class="form-title">${this._t("style_options")}</div>
         <ha-form
           .hass=${this.hass}
@@ -1099,13 +1108,13 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         line-height: 1.2;
       }
       ha-form ha-switch {
-        margin-inline-start: -22px;
+        margin-inline-start: -22px !important;
       }
       ha-form ha-selector-boolean {
-        margin-inline-start: -16px;
+        margin-inline-start: -16px !important;
       }
       ha-form ha-selector-boolean ha-switch {
-        margin-inline-start: -22px;
+        margin-inline-start: -22px !important;
       }
       ha-form .form {
         gap: 0;
