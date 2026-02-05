@@ -47,8 +47,7 @@ class EnergyMonitorLogic {
       circle_size_unit: config.circle_size_unit || "px",
       color_untracked_label: config.color_untracked_label === true,
       remove_strings: config.remove_strings !== undefined ? config.remove_strings : "",
-      zone: config.zone ?? config.room,
-      room: config.room ?? config.zone,
+      zone: config.zone,
       ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
       decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
       ...config,
@@ -546,7 +545,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       return html`<ha-card><div style="padding:16px">${this._t('card_not_configured')}</div></ha-card>`;
     }
 
-    const selectedZone = this.config.zone ?? this.config.room;
+    const selectedZone = this.config.zone;
     const zoneState = selectedZone ? (this.hass && this.hass.states ? this.hass.states[selectedZone] : null) : null;
     if (!selectedZone || !zoneState) {
       return html`<ha-card><div style="padding:16px">${this._t('no_zone_selected')}</div></ha-card>`;
@@ -733,7 +732,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           return { entity_id: entity.entity_id, friendly_name: friendlyName };
         })
         .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
-      if (!this._config.zone && !this._config.room && this.zones.length > 0) {
+      if (!this._config.zone && this.zones.length > 0) {
         this._config = { ...this._config, zone: this.zones[0].entity_id };
         this.fireConfigChanged();
       }
@@ -754,13 +753,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     if (Array.isArray(nextConfig.untracked_color)) {
       nextConfig.untracked_color = `#${nextConfig.untracked_color.map(v => Number(v).toString(16).padStart(2, "0")).join("")}`;
     }
-    if (nextConfig.zone) {
-      nextConfig.room = nextConfig.zone;
-    } else if (nextConfig.room) {
-      nextConfig.zone = nextConfig.room;
-    }
     if (value.zone === undefined) {
-      nextConfig.zone = this._config.zone ?? this._config.room;
+      nextConfig.zone = this._config.zone;
     }
     this._config = nextConfig;
     this._logic.debugEnabled = this._config.log_enabled === true;
@@ -771,7 +765,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   _generalFormSchema() {
     const fontSizeOptions = [];
     for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(`${i.toFixed(1)}px`);
-    const selectedZone = this._config?.zone ?? this._config?.room ?? "";
+    const selectedZone = this._config?.zone ?? "";
     const zoneOptions = this.zones.map(zone => ({
       value: zone.entity_id,
       label: zone.friendly_name,
@@ -888,7 +882,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           },
           {
             name: "remove_strings",
-            selector: { text: { multiline: true, rows: 1 } },
+            selector: { text: { multiline: true } },
           },
           {
             name: "tracked_value_size",
@@ -1019,7 +1013,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
-    const selectedZone = this._config?.zone ?? this._config?.room ?? "";
+    const selectedZone = this._config?.zone ?? "";
     const data = {
       ...this._config,
       zone: selectedZone,
@@ -1081,8 +1075,15 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         gap: 0;
         margin: 0;
       }
+      ha-form ha-formfield .mdc-form-field {
+        margin: 0;
+      }
+      ha-form ha-formfield p.primary {
+        margin: 0;
+        line-height: 1.2;
+      }
       ha-form ha-switch {
-        margin-inline-start: -6px;
+        margin-inline-start: -14px;
       }
       ha-form .form {
         gap: 0;
