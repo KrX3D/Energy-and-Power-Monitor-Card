@@ -1015,6 +1015,16 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     this._valueChanged({ detail: { value: { [key]: value } } });
   }
 
+  _handleColorChanged(ev) {
+    const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
+    const selector = path.find(node => node?.tagName === "HA-SELECTOR-COLOR_RGB");
+    if (!selector) return;
+    const key = selector?.configValue || selector?.name;
+    const value = ev.detail?.value;
+    if (!key || value === undefined) return;
+    this._valueChanged({ detail: { value: { [key]: value } } });
+  }
+
   fireConfigChanged() {
     this.dispatchEvent(new CustomEvent("config-changed", {
       detail: { config: this._config },
@@ -1047,7 +1057,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     };
 
     return html`
-      <div class="form-section" @value-changed=${this._handleSelectorValueChanged} @input=${this._handleSelectorValueChanged} @change=${this._handleSelectorValueChanged}>
+      <div class="form-section" @value-changed=${this._handleSelectorValueChanged} @input=${this._handleSelectorValueChanged} @change=${this._handleSelectorValueChanged} @color-changed=${this._handleColorChanged}>
         <div class="form-title">${this._t("general_options")}</div>
         <ha-form
           .hass=${this.hass}
@@ -1058,7 +1068,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           @value-changed=${this._valueChanged}
         ></ha-form>
       </div>
-      <div class="form-section" @value-changed=${this._handleSelectorValueChanged} @input=${this._handleSelectorValueChanged} @change=${this._handleSelectorValueChanged}>
+      <div class="form-section" @value-changed=${this._handleSelectorValueChanged} @input=${this._handleSelectorValueChanged} @change=${this._handleSelectorValueChanged} @color-changed=${this._handleColorChanged}>
         <div class="form-title">${this._t("style_options")}</div>
         <ha-form
           .hass=${this.hass}
