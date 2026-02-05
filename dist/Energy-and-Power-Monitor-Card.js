@@ -754,20 +754,23 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     if (Array.isArray(nextConfig.untracked_color)) {
       nextConfig.untracked_color = `#${nextConfig.untracked_color.map(v => Number(v).toString(16).padStart(2, "0")).join("")}`;
     }
-    if (nextConfig.zone && !nextConfig.room) {
+    if (nextConfig.zone) {
       nextConfig.room = nextConfig.zone;
+    } else if (nextConfig.room) {
+      nextConfig.zone = nextConfig.room;
     }
     if (value.zone === undefined) {
       nextConfig.zone = this._config.zone ?? this._config.room;
     }
     this._config = nextConfig;
-    this._logic.updateConfig(this._config);
     this._logic.debugEnabled = this._config.log_enabled === true;
     this.fireConfigChanged();
     this.requestUpdate();
   }
 
   _generalFormSchema() {
+    const fontSizeOptions = [];
+    for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(`${i.toFixed(1)}px`);
     const selectedZone = this._config?.zone ?? this._config?.room ?? "";
     const zoneOptions = this.zones.map(zone => ({
       value: zone.entity_id,
@@ -845,7 +848,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     const iconSizeOptions = [];
     for (let i = 12; i <= 50; i += 1) iconSizeOptions.push(`${i}px`);
     const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
-    const decimalOptions = [0,1,2,3];
+    const decimalOptions = ["0", "1", "2", "3"];
 
     return [
       {
@@ -855,19 +858,11 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         schema: [
           {
             name: "tracked_color",
-            selector: { 
-              ui_color: {
-                default_color: "#3CB371"
-              }
-            },
+            selector: { color: {} },
           },
           {
             name: "untracked_color",
-            selector: { 
-              ui_color: {
-                default_color: "#808080"
-              }
-            },
+            selector: { color: {} },
           },
           {
             name: "color_untracked_label",
@@ -887,8 +882,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           },
           {
             name: "remove_strings",
-            //selector: { text: {} }, //only one row but not multiline
-            selector: { text: { multiline: true } },
+            selector: { text: { multiline: true, rows: 1 } },
           },
           {
             name: "tracked_value_size",
@@ -949,7 +943,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
             selector: {
               select: {
                 mode: "dropdown",
-                options: decimalOptions.map(value => ({ value, label: value })),
+                options: decimalOptions.map(value => ({ value, label: `${value}` })),
               },
             },
           },
@@ -1023,6 +1017,9 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     const data = {
       ...this._config,
       zone: selectedZone,
+      decimal_precision: this._config?.decimal_precision !== undefined
+        ? String(this._config.decimal_precision)
+        : undefined,
     };
 
     return html`
@@ -1053,9 +1050,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 
   static get styles() {
     return css`
-      :host { 
-        display: block; 
-      }
+      :host { display: block; }
       .form-section {
         border: 1px solid var(--divider-color, #e0e0e0);
         border-radius: 6px;
@@ -1074,89 +1069,22 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       }
       ha-form ha-settings-row {
         --settings-row-content-padding: 0;
-        --settings-row-prefix-display: contents;
-        padding: 2px 0;
       }
       ha-form ha-formfield {
         gap: 0;
-        margin: 0;
-        padding: 0;
-      }
-      ha-form ha-formfield .mdc-form-field {
-        margin: 0;
-        padding: 2px 0;
-      }
-      ha-form ha-formfield p.primary {
-        margin: 0;
-        padding: 0;
-        line-height: 1.3;
       }
       ha-form ha-switch {
-        margin-inline-start: -12px;
+        margin-inline-start: -6px;
       }
       ha-form .form {
-        gap: 0;
+        gap: 1px;
       }
-      ha-form .root {
-        gap: 2px;
-      }
-      ha-form ha-selector {
-        margin: 2px 0;
-        display: block;
-      }
-      ha-form ha-selector-select,
-      ha-form ha-selector-boolean {
-        margin: 0;
-        padding: 0;
-        display: block;
-      }
-      ha-form ha-select {
-        margin-top: 0;
-        display: block;
-      }
-      ha-form .mdc-select {
-        margin-top: 0;
-      }
-      ha-form .mdc-select__anchor {
-        height: 40px;
-      }
-      ha-form .mdc-floating-label {
-        top: 16px;
-      }
-      ha-form .mdc-floating-label--float-above {
-        top: 8px;
-      }
-      ha-form ha-textfield,
-      ha-form ha-selector-text {
-        margin: 2px 0;
-        display: block;
-      }
-      ha-form mwc-textfield,
-      ha-form ha-textfield {
-        --mdc-text-field-outlined-idle-border-color: var(--divider-color);
-        --mdc-text-field-outlined-hover-border-color: var(--primary-color);
-      }
-      ha-form textarea {
-        font-family: inherit;
-        font-size: 12.5px;
-        resize: vertical;
-        min-height: 24px;
-        padding: 4px 8px;
-        border: 1px solid var(--divider-color, #e0e0e0);
-        border-radius: 4px;
-        width: 100%;
-        box-sizing: border-box;
+      .form-section textarea {
+        min-height: 28px;
       }
       ha-form .group {
         padding: 0;
         border: 0;
-        margin: 0;
-        gap: 2px;
-      }
-      ha-form ha-selector-ui_color,
-      ha-form ha-ui-color-picker {
-        display: block;
-        margin: 2px 0;
       }
     `;
   }
