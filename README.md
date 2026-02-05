@@ -7,10 +7,13 @@ The **Energy and Power Monitor Card** is a custom Home Assistant card that works
 ## Features
 
 - **Room Selection**:  
-  Select a room from the list automatically fetched from the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration).
+  Select a room from the list automatically fetched from the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration). The card uses `zone` for selection.
 
 - **Display Options**:  
   Toggle the display of the room name and icon.
+
+- **Debug Logging**:  
+  Enable verbose logging in the browser console for troubleshooting.
 
 - **Untracked Values**:  
   Option to display untracked power/energy values separately.
@@ -36,7 +39,10 @@ The **Energy and Power Monitor Card** is a custom Home Assistant card that works
   Option to use the untracked color for the untracked value label.
 
 - **Styling Options**:  
-  Configure font sizes for tracked/untracked values and room names, as well as icon and circle sizes.
+  Configure font sizes for tracked/untracked values and room names, as well as icon, circle, and ring sizes.
+
+- **Precision Control**:  
+  Choose how many decimal places are shown for displayed values.
 
 ---
 
@@ -69,9 +75,12 @@ This card requires the [Energy and Power Monitor Integration](https://github.com
 
 ## Configuration Options
 
+The card uses `zone` as the selection key.
+
 | Option                          | Type     | Default     | Description |
 |---------------------------------|----------|-------------|-------------|
-| **Select Room**                 | Dropdown | *(First room)* | Choose the room to display. Rooms are fetched from the Energy and Power Monitor Integration. |
+| **Select Room**                 | Dropdown | *(First room)* | Choose the room/zone to display. Rooms are fetched from the Energy and Power Monitor Integration. |
+| **Debug Logging**               | Checkbox | `false`     | Enable verbose logging in the browser console. |
 | **Show Name**                   | Checkbox | `true`      | Toggle the display of the room name on the card. |
 | **Show Icon**                   | Checkbox | `true`      | Toggle the display of the room icon. |
 | **Show Untracked Values**       | Checkbox | `true`      | Toggle the display of untracked power/energy values. |
@@ -87,6 +96,8 @@ This card requires the [Energy and Power Monitor Integration](https://github.com
 | **Room Name Size**              | Dropdown | `10.5px`    | Font size for the room name text. |
 | **Icon Size**                   | Dropdown | `22px`      | Icon size for the room icon. |
 | **Circle Size**                 | Dropdown | `80px`      | Diameter of the circle in pixels. |
+| **Ring Width**                  | Dropdown | `6px`       | Thickness of the circular ring border. |
+| **Decimal Precision**           | Dropdown | `1`         | Number of decimal places shown for values. |
 
 ---
 
@@ -94,7 +105,8 @@ This card requires the [Energy and Power Monitor Integration](https://github.com
 
 ```yaml
 type: custom:energy-power-monitor-card
-room: sensor.living_room_energy
+zone: sensor.living_room_energy
+log_enabled: false
 show_name: true
 show_icon: true
 show_untracked_values: true
@@ -110,6 +122,8 @@ untracked_value_size: 10.5px
 room_name_size: 10.5px
 icon_size: 22px
 circle_size: 80px
+ring_width: 6px
+decimal_precision: 1
 ```
 
 ## GUI Configuration
