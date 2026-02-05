@@ -776,15 +776,21 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       value: zone.entity_id,
       label: zone.friendly_name,
     }));
-    if (selectedZone && !zoneOptions.some(option => option.value === selectedZone)) {
-      let fallbackLabel = this.hass?.states?.[selectedZone]?.attributes?.friendly_name
-        || this.hass?.states?.[selectedZone]?.attributes?.name
-        || selectedZone;
-      fallbackLabel = fallbackLabel
-        .replace(/ selected entities -/gi, '')
-        .replace(/ (Power|Energy)$/gi, '')
-        .trim();
-      zoneOptions.unshift({ value: selectedZone, label: fallbackLabel || selectedZone });
+    if (selectedZone) {
+      const selectedIndex = zoneOptions.findIndex(option => option.value === selectedZone);
+      if (selectedIndex >= 0) {
+        const [selected] = zoneOptions.splice(selectedIndex, 1);
+        zoneOptions.unshift(selected);
+      } else {
+        let fallbackLabel = this.hass?.states?.[selectedZone]?.attributes?.friendly_name
+          || this.hass?.states?.[selectedZone]?.attributes?.name
+          || selectedZone;
+        fallbackLabel = fallbackLabel
+          .replace(/ selected entities -/gi, '')
+          .replace(/ (Power|Energy)$/gi, '')
+          .trim();
+        zoneOptions.unshift({ value: selectedZone, label: fallbackLabel || selectedZone });
+      }
     }
     return [
       {
@@ -1069,15 +1075,44 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       }
       ha-form ha-settings-row {
         --settings-row-content-padding: 0;
+        padding: 2px 0;
       }
       ha-form ha-formfield {
         gap: 0;
+        margin: 0;
       }
       ha-form ha-switch {
         margin-inline-start: -6px;
       }
       ha-form .form {
-        gap: 1px;
+        gap: 0;
+      }
+      ha-form .root {
+        gap: 2px;
+      }
+      ha-form ha-selector,
+      ha-form ha-selector-select,
+      ha-form ha-selector-boolean,
+      ha-form ha-selector-color,
+      ha-form ha-selector-text {
+        margin: 2px 0;
+        display: block;
+      }
+      ha-form ha-select {
+        margin-top: 0;
+        display: block;
+      }
+      ha-form .mdc-select {
+        margin-top: 0;
+      }
+      ha-form .mdc-select__anchor {
+        min-height: 40px;
+      }
+      ha-form .mdc-floating-label {
+        top: 16px;
+      }
+      ha-form .mdc-floating-label--float-above {
+        top: 8px;
       }
       .form-section textarea {
         min-height: 28px;
