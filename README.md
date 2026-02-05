@@ -7,10 +7,13 @@ The **Energy and Power Monitor Card** is a custom Home Assistant card that works
 ## Features
 
 - **Room Selection**:  
-  Select a room from the list automatically fetched from the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration). The card uses `zone` for selection and keeps the legacy `room` key in sync for backwards compatibility.
+  Select a room from the list automatically fetched from the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration). The card uses `zone` for selection.
 
 - **Display Options**:  
   Toggle the display of the room name and icon.
+
+- **Debug Logging**:  
+  Enable verbose logging in the browser console for troubleshooting.
 
 - **Untracked Values**:  
   Option to display untracked power/energy values separately.
@@ -72,11 +75,12 @@ This card requires the [Energy and Power Monitor Integration](https://github.com
 
 ## Configuration Options
 
-The card accepts `zone` as the primary selection key. For legacy configurations, `room` is still supported and automatically synchronized with `zone`.
+The card uses `zone` as the selection key.
 
 | Option                          | Type     | Default     | Description |
 |---------------------------------|----------|-------------|-------------|
 | **Select Room**                 | Dropdown | *(First room)* | Choose the room/zone to display. Rooms are fetched from the Energy and Power Monitor Integration. |
+| **Debug Logging**               | Checkbox | `false`     | Enable verbose logging in the browser console. |
 | **Show Name**                   | Checkbox | `true`      | Toggle the display of the room name on the card. |
 | **Show Icon**                   | Checkbox | `true`      | Toggle the display of the room icon. |
 | **Show Untracked Values**       | Checkbox | `true`      | Toggle the display of untracked power/energy values. |
@@ -102,6 +106,7 @@ The card accepts `zone` as the primary selection key. For legacy configurations,
 ```yaml
 type: custom:energy-power-monitor-card
 zone: sensor.living_room_energy
+log_enabled: false
 show_name: true
 show_icon: true
 show_untracked_values: true
