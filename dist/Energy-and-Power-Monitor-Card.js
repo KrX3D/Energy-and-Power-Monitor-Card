@@ -949,11 +949,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           @value-changed=${formProps.onValueChanged}
         ></ha-form>
 
-        ${this._renderBoolRow("show_name",             this._t("show_name"))}
-        ${this._renderBoolRow("show_icon",             this._t("show_icon"))}
-        ${this._renderBoolRow("show_untracked_values", this._t("show_untracked_values"))}
-        ${this._renderBoolRow("combine_value_untracked", this._t("combine_untracked_values"))}
-
         <ha-form
           .hass=${formProps.hass}
           .data=${formProps.data}
@@ -962,10 +957,17 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           .computeHelper=${formProps.computeHelper}
           @value-changed=${formProps.onValueChanged}
         ></ha-form>
+
+        ${this._renderBoolRow("show_name",               this._t("show_name"))}
+        ${this._renderBoolRow("show_icon",               this._t("show_icon"))}
+        ${this._renderBoolRow("show_untracked_values",   this._t("show_untracked_values"))}
+        ${this._renderBoolRow("combine_value_untracked", this._t("combine_untracked_values"))}
       </div>
 
       <div class="form-section">
         <div class="form-title">${this._t("style_options")}</div>
+
+        ${this._renderBoolRow("color_untracked_label", this._t("color_untracked_label"))}
 
         <ha-form
           .hass=${formProps.hass}
@@ -975,8 +977,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           .computeHelper=${formProps.computeHelper}
           @value-changed=${formProps.onValueChanged}
         ></ha-form>
-
-        ${this._renderBoolRow("color_untracked_label", this._t("color_untracked_label"))}
       </div>
     `;
   }
