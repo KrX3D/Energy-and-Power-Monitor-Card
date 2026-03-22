@@ -767,80 +767,75 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     this.requestUpdate();
   }
 
-  _generalFormSchema() {
+  // -----------------------------------------------------------------------
+  // Boolean rows rendered as plain HTML — bypasses ha-form-grid entirely
+  // so we have full control over spacing.
+  // -----------------------------------------------------------------------
+
+  _renderBoolRow(key, label) {
+    const checked = !!this._config?.[key];
+    return html`
+      <div class="bool-row">
+        <span class="bool-label">${label}</span>
+        <ha-switch
+          .checked=${checked}
+          @change=${(e) => this._onBoolChange(key, e.target.checked)}
+        ></ha-switch>
+      </div>
+    `;
+  }
+
+  _onBoolChange(key, value) {
+    this._config = { ...this._config, [key]: value };
+    this._logic.debugEnabled = this._config.log_enabled === true;
+    this.fireConfigChanged();
+    this.requestUpdate();
+  }
+
+  // -----------------------------------------------------------------------
+  // Schemas — only select/color/text fields; booleans rendered manually above
+  // -----------------------------------------------------------------------
+
+  _zoneSchema() {
     const selectedZone = this._config?.zone ?? "";
     const zoneOptions = this.zones.map(zone => ({
       value: zone.entity_id,
       label: zone.friendly_name,
     }));
     if (selectedZone) {
-      const selectedIndex = zoneOptions.findIndex(option => option.value === selectedZone);
-      if (selectedIndex >= 0) {
-        const [selected] = zoneOptions.splice(selectedIndex, 1);
-        zoneOptions.unshift(selected);
+      const idx = zoneOptions.findIndex(o => o.value === selectedZone);
+      if (idx >= 0) {
+        const [sel] = zoneOptions.splice(idx, 1);
+        zoneOptions.unshift(sel);
       } else {
-        let fallbackLabel = this.hass?.states?.[selectedZone]?.attributes?.friendly_name
+        let label = this.hass?.states?.[selectedZone]?.attributes?.friendly_name
           || this.hass?.states?.[selectedZone]?.attributes?.name
           || selectedZone;
-        fallbackLabel = fallbackLabel
-          .replace(/ selected entities -/gi, '')
-          .replace(/ (Power|Energy)$/gi, '')
-          .trim();
-        zoneOptions.unshift({ value: selectedZone, label: fallbackLabel || selectedZone });
+        label = label.replace(/ selected entities -/gi, '').replace(/ (Power|Energy)$/gi, '').trim();
+        zoneOptions.unshift({ value: selectedZone, label: label || selectedZone });
       }
     }
-    return [
-      {
-        type: "grid",
-        columns: 1,
-        column_min_width: "100%",
-        schema: [
-          {
-            name: "log_enabled",
-            selector: { boolean: {} },
-          },
-          {
-            name: "zone",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: zoneOptions,
-              },
-            },
-          },
-          {
-            name: "show_name",
-            selector: { boolean: {} },
-          },
-          {
-            name: "show_icon",
-            selector: { boolean: {} },
-          },
-          {
-            name: "show_untracked_values",
-            selector: { boolean: {} },
-          },
-          {
-            name: "combine_value_untracked",
-            selector: { boolean: {} },
-          },
-          {
-            name: "levels_to_show",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: [
-                  { value: "all", label: this._t("levels_all") },
-                  { value: "selected", label: this._t("levels_selected") },
-                  { value: "parents", label: this._t("levels_parents") },
-                  { value: "first", label: this._t("levels_first") },
-                ],
-              },
-            },
-          },
-        ],
+    return [{
+      name: "zone",
+      selector: { select: { mode: "dropdown", options: zoneOptions } },
+    }];
+  }
+
+  _levelsSchema() {
+    return [{
+      name: "levels_to_show",
+      selector: {
+        select: {
+          mode: "dropdown",
+          options: [
+            { value: "all",      label: this._t("levels_all") },
+            { value: "selected", label: this._t("levels_selected") },
+            { value: "parents",  label: this._t("levels_parents") },
+            { value: "first",    label: this._t("levels_first") },
+          ],
+        },
       },
-    ];
+    }];
   }
 
   _styleFormSchema() {
@@ -853,136 +848,51 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
     const decimalOptions = ["0", "1", "2", "3"];
 
+    // color_untracked_label is a boolean — rendered manually in render(), not here
     return [
-      {
-        type: "grid",
-        columns: 1,
-        column_min_width: "100%",
-        schema: [
-          {
-            name: "tracked_color",
-            selector: { color_rgb: {} },
-          },
-          {
-            name: "untracked_color",
-            selector: { color_rgb: {} },
-          },
-          {
-            name: "color_untracked_label",
-            selector: { boolean: {} },
-          },
-          {
-            name: "room_name_position",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: [
-                  { value: "inside", label: this._t("position_inside") },
-                  { value: "below", label: this._t("position_below") },
-                ],
-              },
-            },
-          },
-          {
-            name: "remove_strings",
-            selector: { text: { multiline: true } },
-          },
-          {
-            name: "tracked_value_size",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: fontSizeOptions.map(size => ({ value: size, label: size })),
-              },
-            },
-          },
-          {
-            name: "untracked_value_size",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: fontSizeOptions.map(size => ({ value: size, label: size })),
-              },
-            },
-          },
-          {
-            name: "room_name_size",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: fontSizeOptions.map(size => ({ value: size, label: size })),
-              },
-            },
-          },
-          {
-            name: "icon_size",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: iconSizeOptions.map(size => ({ value: size, label: size })),
-              },
-            },
-          },
-          {
-            name: "circle_size",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: circleSizeOptions.map(size => ({ value: size, label: size })),
-              },
-            },
-          },
-          {
-            name: "ring_width",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: ringWidthOptions.map(value => ({ value, label: value })),
-              },
-            },
-          },
-          {
-            name: "decimal_precision",
-            selector: {
-              select: {
-                mode: "dropdown",
-                options: decimalOptions.map(value => ({ value, label: `${value}` })),
-              },
-            },
-          },
-        ],
-      },
+      { name: "tracked_color",      selector: { color_rgb: {} } },
+      { name: "untracked_color",    selector: { color_rgb: {} } },
+      { name: "room_name_position", selector: { select: { mode: "dropdown", options: [
+        { value: "inside", label: this._t("position_inside") },
+        { value: "below",  label: this._t("position_below") },
+      ] } } },
+      { name: "remove_strings",     selector: { text: { multiline: true } } },
+      { name: "tracked_value_size", selector: { select: { mode: "dropdown",
+        options: fontSizeOptions.map(s => ({ value: s, label: s })) } } },
+      { name: "untracked_value_size", selector: { select: { mode: "dropdown",
+        options: fontSizeOptions.map(s => ({ value: s, label: s })) } } },
+      { name: "room_name_size",     selector: { select: { mode: "dropdown",
+        options: fontSizeOptions.map(s => ({ value: s, label: s })) } } },
+      { name: "icon_size",          selector: { select: { mode: "dropdown",
+        options: iconSizeOptions.map(s => ({ value: s, label: s })) } } },
+      { name: "circle_size",        selector: { select: { mode: "dropdown",
+        options: circleSizeOptions.map(s => ({ value: s, label: s })) } } },
+      { name: "ring_width",         selector: { select: { mode: "dropdown",
+        options: ringWidthOptions.map(v => ({ value: v, label: v })) } } },
+      { name: "decimal_precision",  selector: { select: { mode: "dropdown",
+        options: decimalOptions.map(v => ({ value: v, label: v })) } } },
     ];
   }
 
   _computeLabel(schema) {
     switch (schema.name) {
-      case "zone":                  return this._t("select_zone");
-      case "log_enabled":           return this._t("log_enabled");
-      case "show_name":             return this._t("show_name");
-      case "show_icon":             return this._t("show_icon");
-      case "show_untracked_values": return this._t("show_untracked_values");
-      case "combine_value_untracked": return this._t("combine_untracked_values");
-      case "levels_to_show":        return this._t("levels_to_display");
-      case "tracked_color":         return this._t("tracked_color");
-      case "untracked_color":       return this._t("untracked_color");
-      case "color_untracked_label": return this._t("color_untracked_label");
-      case "room_name_position":    return this._t("zone_name_position");
-      case "remove_strings":        return this._t("remove_prefix");
-      case "tracked_value_size":    return this._t("tracked_value_size");
-      case "untracked_value_size":  return this._t("untracked_value_size");
-      case "room_name_size":        return this._t("zone_name_size");
-      case "icon_size":             return this._t("icon_size");
-      case "circle_size":           return this._t("circle_size");
-      case "ring_width":            return this._t("ring_width");
-      case "decimal_precision":     return this._t("decimal_precision");
-      default:                      return schema.name;
+      case "zone":                    return this._t("select_zone");
+      case "levels_to_show":          return this._t("levels_to_display");
+      case "tracked_color":           return this._t("tracked_color");
+      case "untracked_color":         return this._t("untracked_color");
+      case "room_name_position":      return this._t("zone_name_position");
+      case "remove_strings":          return this._t("remove_prefix");
+      case "tracked_value_size":      return this._t("tracked_value_size");
+      case "untracked_value_size":    return this._t("untracked_value_size");
+      case "room_name_size":          return this._t("zone_name_size");
+      case "icon_size":               return this._t("icon_size");
+      case "circle_size":             return this._t("circle_size");
+      case "ring_width":              return this._t("ring_width");
+      case "decimal_precision":       return this._t("decimal_precision");
+      default:                        return schema.name;
     }
   }
 
-  // FIX: previously a no-op switch that always returned "".
-  // The translation files already contain helper text for these two fields
-  // (remove_prefix_title, decimal_precision_title) — wire them in here.
   _computeHelper(schema) {
     switch (schema.name) {
       case "decimal_precision": return this._t("decimal_precision_title");
@@ -999,50 +909,74 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
-    const selectedZone = this._config?.zone ?? "";
     const toColorArray = (value) => {
       if (typeof value !== "string") return value;
       const match = value.trim().match(/^#?([0-9a-fA-F]{6})$/);
       if (!match) return value;
       const hex = match[1];
-      return [
-        parseInt(hex.slice(0, 2), 16),
-        parseInt(hex.slice(2, 4), 16),
-        parseInt(hex.slice(4, 6), 16),
-      ];
+      return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
     };
+
     const data = {
       ...this._config,
-      zone: selectedZone,
+      zone: this._config?.zone ?? "",
       tracked_color: toColorArray(this._config?.tracked_color),
       untracked_color: toColorArray(this._config?.untracked_color),
       decimal_precision: this._config?.decimal_precision !== undefined
-        ? String(this._config.decimal_precision)
-        : undefined,
+        ? String(this._config.decimal_precision) : undefined,
+    };
+
+    const formProps = {
+      hass: this.hass,
+      data,
+      computeLabel: this._computeLabel.bind(this),
+      computeHelper: this._computeHelper.bind(this),
+      onValueChanged: this._valueChanged.bind(this),
     };
 
     return html`
       <div class="form-section">
         <div class="form-title">${this._t("general_options")}</div>
+
+        ${this._renderBoolRow("log_enabled", this._t("log_enabled"))}
+
         <ha-form
-          .hass=${this.hass}
-          .data=${data}
-          .schema=${this._generalFormSchema()}
-          .computeLabel=${this._computeLabel.bind(this)}
-          .computeHelper=${this._computeHelper.bind(this)}
-          @value-changed=${this._valueChanged}
+          .hass=${formProps.hass}
+          .data=${formProps.data}
+          .schema=${this._zoneSchema()}
+          .computeLabel=${formProps.computeLabel}
+          .computeHelper=${formProps.computeHelper}
+          @value-changed=${formProps.onValueChanged}
+        ></ha-form>
+
+        ${this._renderBoolRow("show_name",             this._t("show_name"))}
+        ${this._renderBoolRow("show_icon",             this._t("show_icon"))}
+        ${this._renderBoolRow("show_untracked_values", this._t("show_untracked_values"))}
+        ${this._renderBoolRow("combine_value_untracked", this._t("combine_untracked_values"))}
+
+        <ha-form
+          .hass=${formProps.hass}
+          .data=${formProps.data}
+          .schema=${this._levelsSchema()}
+          .computeLabel=${formProps.computeLabel}
+          .computeHelper=${formProps.computeHelper}
+          @value-changed=${formProps.onValueChanged}
         ></ha-form>
       </div>
+
       <div class="form-section">
         <div class="form-title">${this._t("style_options")}</div>
+
         <ha-form
-          .hass=${this.hass}
-          .data=${data}
+          .hass=${formProps.hass}
+          .data=${formProps.data}
           .schema=${this._styleFormSchema()}
-          .computeLabel=${this._computeLabel.bind(this)}
-          .computeHelper=${this._computeHelper.bind(this)}
-          @value-changed=${this._valueChanged}
+          .computeLabel=${formProps.computeLabel}
+          .computeHelper=${formProps.computeHelper}
+          @value-changed=${formProps.onValueChanged}
         ></ha-form>
+
+        ${this._renderBoolRow("color_untracked_label", this._t("color_untracked_label"))}
       </div>
     `;
   }
@@ -1061,81 +995,25 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         font-size: 12.5px;
         margin-bottom: 4px;
       }
+      /* Manual boolean toggle rows — full spacing control */
+      .bool-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0;
+        min-height: 40px;
+        box-sizing: border-box;
+        font-size: 14px;
+        color: var(--primary-text-color);
+      }
+      .bool-label {
+        flex: 1;
+        padding-right: 8px;
+      }
+      /* ha-form used only for selects/colors/text — no booleans inside */
       ha-form {
         --mdc-typography-body2-font-size: 12.5px;
         --mdc-typography-subtitle1-font-size: 12.5px;
-        --ha-form-field-label-spacing: 0;
-      }
-      ha-form ha-settings-row {
-        --settings-row-content-padding: 0;
-        padding: 0;
-        margin: 0;
-        column-gap: 0;
-        min-height: 36px;
-      }
-      ha-form ha-settings-row + ha-settings-row {
-        margin-top: -8px;
-      }
-      ha-form ha-formfield {
-        gap: 0;
-        margin: 0;
-        margin-inline-start: -10px;
-      }
-      ha-form ha-formfield .mdc-form-field {
-        margin: 0;
-      }
-      ha-form ha-formfield p.primary {
-        margin: 0;
-        line-height: 1.2;
-      }
-      ha-form ha-switch {
-        margin-inline-start: -22px !important;
-      }
-      ha-form ha-selector-boolean {
-        margin-inline-start: -16px !important;
-      }
-      ha-form ha-selector-boolean ha-switch {
-        margin-inline-start: -22px !important;
-      }
-      ha-form .form {
-        gap: 0;
-        row-gap: 0;
-      }
-      ha-form .root {
-        gap: 0;
-        row-gap: 0;
-      }
-      ha-form ha-selector,
-      ha-form ha-selector-select,
-      ha-form ha-selector-boolean,
-      ha-form ha-selector-color,
-      ha-form ha-selector-color_rgb,
-      ha-form ha-selector-text {
-        margin: 0;
-        display: block;
-      }
-      ha-form ha-select {
-        margin-top: 0;
-        display: block;
-      }
-      ha-form .mdc-select {
-        margin-top: 0;
-      }
-      ha-form .mdc-select__anchor {
-        min-height: 40px;
-      }
-      ha-form .mdc-floating-label {
-        top: 16px;
-      }
-      ha-form .mdc-floating-label--float-above {
-        top: 8px;
-      }
-      .form-section textarea {
-        min-height: 28px;
-      }
-      ha-form .group {
-        padding: 0;
-        border: 0;
       }
     `;
   }
