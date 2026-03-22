@@ -26,7 +26,7 @@ The **Energy and Power Monitor Card** is a custom Home Assistant card that works
 
 - **Remove Prefix**:  
   Remove specified prefix strings from child entity names.  
-  Enter a semicolon-separated list (e.g. `1 OG; Schlafzimmer; Arbeitszimmer`) and if a child’s name starts with any of these prefixes (followed by a space and additional text) the prefix is removed.
+  Enter a semicolon-separated list (e.g. `1 OG; Living Room; Office`) and if a child's name starts with any of these prefixes (followed by a space and additional text) the prefix is removed.
 
 - **Levels to Display**:  
   Choose how many levels of the tree to show:
@@ -38,11 +38,14 @@ The **Energy and Power Monitor Card** is a custom Home Assistant card that works
 - **Color Untracked Label**:  
   Option to use the untracked color for the untracked value label.
 
+- **Live Color Preview**:  
+  Tracked and untracked colors update the card preview in real time while dragging the color picker — no need to confirm or close first.
+
 - **Styling Options**:  
   Configure font sizes for tracked/untracked values and room names, as well as icon, circle, and ring sizes.
 
 - **Precision Control**:  
-  Choose how many decimal places are shown for displayed values.
+  Choose how many decimal places are shown for displayed values (0–3).
 
 ---
 
@@ -88,8 +91,8 @@ The card uses `zone` as the selection key.
 | **Room Name Position**          | Dropdown | `below`     | Choose where to display the room name: `inside` or `below` the circle. |
 | **Remove prefix (sep. by ';')**  | Text     | `""`        | Enter prefix strings to remove from child names if present at the start (followed by a space). |
 | **Levels to Display**           | Dropdown | `all`       | Options: <br>**All** – show all levels. <br>**Only Selected** – show only the selected room. <br>**All Parents** – show only nodes that have children (omit leaf nodes). <br>**1st Level Max** – show only the selected room and its immediate children. |
-| **Tracked Color**               | Color    | `#3CB371`   | Color for tracked values and circle border. |
-| **Untracked Color**             | Color    | `#808080`   | Color for untracked values and (optionally) for the untracked label. |
+| **Tracked Color**               | Color    | `#3CB371`   | Color for tracked values and circle border. Updates the card preview in real time while dragging. |
+| **Untracked Color**             | Color    | `#808080`   | Color for untracked values and (optionally) for the untracked label. Updates the card preview in real time while dragging. |
 | **Color Untracked Label**       | Checkbox | `false`     | When enabled, the untracked value label uses the untracked color. |
 | **Tracked Value Size**          | Dropdown | `10.5px`    | Font size for the tracked value display. |
 | **Untracked Value Size**        | Dropdown | `10.5px`    | Font size for the untracked value display. |
@@ -97,7 +100,7 @@ The card uses `zone` as the selection key.
 | **Icon Size**                   | Dropdown | `22px`      | Icon size for the room icon. |
 | **Circle Size**                 | Dropdown | `80px`      | Diameter of the circle in pixels. |
 | **Ring Width**                  | Dropdown | `6px`       | Thickness of the circular ring border. |
-| **Decimal Precision**           | Dropdown | `1`         | Number of decimal places shown for values. |
+| **Decimal Precision**           | Dropdown | `1`         | Number of decimal places shown for values (0–3). |
 
 ---
 
@@ -110,9 +113,9 @@ log_enabled: false
 show_name: true
 show_icon: true
 show_untracked_values: true
-combine_value_untracked: true
+combine_value_untracked: false
 levels_to_show: all
-remove_strings: "1 OG; Schlafzimmer; Arbeitszimmer"
+remove_strings: "1 OG; Living Room; Office"
 tracked_color: "#3CB371"
 untracked_color: "#808080"
 color_untracked_label: false
@@ -130,6 +133,6 @@ decimal_precision: 1
 
 1. Go to **Dashboards** and click **Add Card**.
 2. Select the **Energy and Power Monitor Card**.
-3. In **General Options**, choose the room and toggle basic options (Show Name, Show Icon, Show Untracked Values, Combine Untracked Values).
-4. In **Style Options**, adjust colors, font sizes, icon and circle sizes, room name position, specify prefix removals (using `;` as the separator), and select the levels to display.
+3. In **General Options**, choose the room, the levels to display, and toggle basic options (Show Name, Show Icon, Show Untracked Values, Combine Untracked Values).
+4. In **Style Options**, adjust colors (preview updates live while dragging), font sizes, icon and circle sizes, room name position, specify prefix removals (using `;` as the separator).
 5. Save your changes.
