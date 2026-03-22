@@ -786,32 +786,27 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   _renderColorRow(key, label) {
-    const toArray = (v) => {
-      if (Array.isArray(v)) return v;
-      if (typeof v !== "string") return [60, 179, 113];
-      const m = v.trim().match(/^#?([0-9a-fA-F]{6})$/);
-      if (!m) return [60, 179, 113];
-      const h = m[1];
-      return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    const toHex = (v) => {
+      if (typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v.trim())) return v.trim();
+      if (Array.isArray(v) && v.length >= 3)
+        return `#${v.map(c => Number(c).toString(16).padStart(2, "0")).join("")}`;
+      return "#3cb371";
     };
+    const hex = toHex(this._config?.[key]);
     return html`
       <div class="color-row">
         <span class="color-label">${label}</span>
-        <ha-selector
-          .hass=${this.hass}
-          .selector=${{ color_rgb: {} }}
-          .value=${toArray(this._config?.[key])}
-          @value-changed=${(e) => this._onColorChange(key, e.detail.value)}
-        ></ha-selector>
+        <input
+          type="color"
+          .value=${hex}
+          @input=${(e) => this._onColorChange(key, e.target.value)}
+          @change=${(e) => this._onColorChange(key, e.target.value)}
+        >
       </div>
     `;
   }
 
-  _onColorChange(key, value) {
-    // value is an RGB array [r, g, b] from ha-selector — convert to hex immediately
-    const hex = Array.isArray(value)
-      ? `#${value.map(v => Number(v).toString(16).padStart(2, "0")).join("")}`
-      : value;
+  _onColorChange(key, hex) {
     this._config = { ...this._config, [key]: hex };
     this.fireConfigChanged();
     this.requestUpdate();
@@ -1039,12 +1034,23 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         align-items: center;
         justify-content: space-between;
         padding: 4px 0;
+        min-height: 40px;
         font-size: 14px;
         color: var(--primary-text-color);
       }
       .color-label {
         flex: 1;
         padding-right: 8px;
+      }
+      .color-row input[type="color"] {
+        width: 42px;
+        height: 28px;
+        border: 1px solid var(--divider-color, #e0e0e0);
+        border-radius: 6px;
+        padding: 2px;
+        background: none;
+        cursor: pointer;
+        flex-shrink: 0;
       }
       /* ha-form used only for selects/colors/text — no booleans inside */
       ha-form {
