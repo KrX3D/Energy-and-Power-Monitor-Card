@@ -4,7 +4,6 @@ import { TRANSLATIONS as ES } from "./es.js";
 import { TRANSLATIONS as FR } from "./fr.js";
 import { TRANSLATIONS as IT } from "./it.js";
 import { TRANSLATIONS as JA } from "./ja.js";
-import { TRANSLATIONS as JS } from "./js.js";
 import { TRANSLATIONS as KO } from "./ko.js";
 import { TRANSLATIONS as NL } from "./nl.js";
 import { TRANSLATIONS as PT } from "./pt.js";
@@ -18,7 +17,6 @@ const TRANSLATIONS = {
   ...FR,
   ...IT,
   ...JA,
-  ...JS,
   ...KO,
   ...NL,
   ...PT,
