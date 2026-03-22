@@ -34,7 +34,7 @@ class EnergyMonitorLogic {
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
-      combine_value_untracked: config.combine_value_untracked !== false,
+      combine_value_untracked: config.combine_value_untracked === true,
       levels_to_show: config.levels_to_show || "all",
       tracked_color: normalizeColor(config.tracked_color, "#3CB371"),
       untracked_color: normalizeColor(config.untracked_color, "#808080"),
@@ -243,7 +243,7 @@ class EnergyMonitorLogic {
   formatNumber(val) {
     if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
 
-    const rawPrecision = this.config.decimal_precision || 1;
+    const rawPrecision = this.config.decimal_precision ?? 1;
     const precision = Math.max(0, Math.min(3, parseInt(rawPrecision, 10) || 1));
 
     try {
