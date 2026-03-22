@@ -785,6 +785,38 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     `;
   }
 
+  _renderColorRow(key, label) {
+    const toArray = (v) => {
+      if (Array.isArray(v)) return v;
+      if (typeof v !== "string") return [60, 179, 113];
+      const m = v.trim().match(/^#?([0-9a-fA-F]{6})$/);
+      if (!m) return [60, 179, 113];
+      const h = m[1];
+      return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    };
+    return html`
+      <div class="color-row">
+        <span class="color-label">${label}</span>
+        <ha-selector
+          .hass=${this.hass}
+          .selector=${{ color_rgb: {} }}
+          .value=${toArray(this._config?.[key])}
+          @value-changed=${(e) => this._onColorChange(key, e.detail.value)}
+        ></ha-selector>
+      </div>
+    `;
+  }
+
+  _onColorChange(key, value) {
+    // value is an RGB array [r, g, b] from ha-selector — convert to hex immediately
+    const hex = Array.isArray(value)
+      ? `#${value.map(v => Number(v).toString(16).padStart(2, "0")).join("")}`
+      : value;
+    this._config = { ...this._config, [key]: hex };
+    this.fireConfigChanged();
+    this.requestUpdate();
+  }
+
   _onBoolChange(key, value) {
     this._config = { ...this._config, [key]: value };
     this._logic.debugEnabled = this._config.log_enabled === true;
@@ -849,9 +881,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     const decimalOptions = ["0", "1", "2", "3"];
 
     // color_untracked_label is a boolean — rendered manually in render(), not here
+    // tracked_color / untracked_color — rendered as direct ha-selector rows for live preview
     return [
-      { name: "tracked_color",      selector: { color_rgb: {} } },
-      { name: "untracked_color",    selector: { color_rgb: {} } },
       { name: "room_name_position", selector: { select: { mode: "dropdown", options: [
         { value: "inside", label: this._t("position_inside") },
         { value: "below",  label: this._t("position_below") },
@@ -909,19 +940,9 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   render() {
-    const toColorArray = (value) => {
-      if (typeof value !== "string") return value;
-      const match = value.trim().match(/^#?([0-9a-fA-F]{6})$/);
-      if (!match) return value;
-      const hex = match[1];
-      return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
-    };
-
     const data = {
       ...this._config,
       zone: this._config?.zone ?? "",
-      tracked_color: toColorArray(this._config?.tracked_color),
-      untracked_color: toColorArray(this._config?.untracked_color),
       decimal_precision: this._config?.decimal_precision !== undefined
         ? String(this._config.decimal_precision) : undefined,
     };
@@ -968,6 +989,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         <div class="form-title">${this._t("style_options")}</div>
 
         ${this._renderBoolRow("color_untracked_label", this._t("color_untracked_label"))}
+        ${this._renderColorRow("tracked_color",   this._t("tracked_color"))}
+        ${this._renderColorRow("untracked_color", this._t("untracked_color"))}
 
         <ha-form
           .hass=${formProps.hass}
@@ -1007,6 +1030,19 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         color: var(--primary-text-color);
       }
       .bool-label {
+        flex: 1;
+        padding-right: 8px;
+      }
+      /* Direct color picker rows — live preview on drag */
+      .color-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0;
+        font-size: 14px;
+        color: var(--primary-text-color);
+      }
+      .color-label {
         flex: 1;
         padding-right: 8px;
       }
