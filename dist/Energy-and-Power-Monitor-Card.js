@@ -12,6 +12,35 @@ import {
 import { localize } from "./translations/index.js";
 
 // ============================================================================
+// SHARED ZONE FETCH HELPER
+// Extracted to avoid duplication between card and editor, and to keep the
+// filter logic in one place. Both the card and the editor call this.
+// ============================================================================
+
+async function _fetchZonesHelper(hass, isUntrackedFn) {
+  const entities = await hass.callWS({ type: 'config/entity_registry/list' });
+  return entities
+    .filter(entity => {
+      const entityId = entity.entity_id || '';
+      const friendly = (hass.states[entityId]?.attributes.friendly_name || entityId).toLowerCase();
+      if (!entityId.startsWith('sensor.energy_power_monitor_')) return false;
+      if (isUntrackedFn(entityId)) return false;
+      if (friendly.includes('untracked')) return false;
+      return true;
+    })
+    .map(entity => {
+      let friendlyName = hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
+      friendlyName = friendlyName
+        .replace(/ selected entities -/gi, '')
+        .replace(/ (Power|Energy)$/gi, '')
+        .trim();
+      if (!friendlyName) friendlyName = entity.entity_id;
+      return { entity_id: entity.entity_id, friendly_name: friendlyName };
+    })
+    .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
+}
+
+// ============================================================================
 // CORE LOGIC - EnergyMonitorLogic Class
 // ============================================================================
 
@@ -29,7 +58,12 @@ class EnergyMonitorLogic {
       return value || fallback;
     };
 
+    // BUG FIX: ...config must be spread FIRST so the explicitly processed values
+    // below override the raw YAML strings. Previously ...config was at the END,
+    // which meant e.g. decimal_precision stayed a raw string instead of an int,
+    // and combine_value_untracked === true check was silently undone.
     return {
+      ...config,
       log_enabled: config.log_enabled === true,
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
@@ -50,7 +84,6 @@ class EnergyMonitorLogic {
       zone: config.zone,
       ring_width: config.ring_width !== undefined ? config.ring_width : '6px',
       decimal_precision: (config.decimal_precision !== undefined) ? parseInt(config.decimal_precision) : 1,
-      ...config,
     };
   }
 
@@ -66,7 +99,9 @@ class EnergyMonitorLogic {
 
   _isUntrackedEntityId(entityId) {
     if (!entityId) return false;
-    return /_untracked(_power|_energy)?$/i.test(entityId) || entityId.toLowerCase().includes('_untracked');
+    // CLEANUP: the previous regex was a strict subset of this includes() check
+    // and could never fire first — simplified to a single condition.
+    return entityId.toLowerCase().includes('_untracked');
   }
 
   getUntrackedEntityValue(entityId, states) {
@@ -243,8 +278,10 @@ class EnergyMonitorLogic {
   formatNumber(val) {
     if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
 
-    const rawPrecision = this.config.decimal_precision ?? 1;
-    const precision = Math.max(0, Math.min(3, parseInt(rawPrecision, 10) || 1));
+    // BUG FIX: previously used `parseInt(...) || 1` which made precision=0 show
+    // 1 decimal place (because 0 || 1 === 1). Use Number.isFinite guard instead.
+    const raw = Number.isFinite(this.config.decimal_precision) ? this.config.decimal_precision : 1;
+    const precision = Math.max(0, Math.min(3, raw));
 
     try {
       const fixed = Number(val).toFixed(precision);
@@ -426,25 +463,7 @@ class EnergyandPowerMonitorCard extends LitElement {
       return;
     }
     try {
-      const entities = await this.hass.callWS({ type: 'config/entity_registry/list' });
-      this.zones = entities
-        .filter(entity => {
-          const entityId = entity.entity_id || '';
-          const friendly = (this.hass.states[entityId]?.attributes.friendly_name || entityId).toLowerCase();
-          if (!entityId.startsWith('sensor.energy_power_monitor_')) return false;
-          if (this.logic._isUntrackedEntityId(entityId)) return false;
-          if (friendly.includes('untracked')) return false;
-          return true;
-        })
-        .map(entity => {
-          let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
-          friendlyName = friendlyName.replace(/ selected entities -/gi, '')
-                                     .replace(/ (Power|Energy)$/gi, '')
-                                     .trim();
-          if (!friendlyName) friendlyName = entity.entity_id;
-          return { entity_id: entity.entity_id, friendly_name: friendlyName };
-        })
-        .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
+      this.zones = await _fetchZonesHelper(this.hass, id => this.logic._isUntrackedEntityId(id));
       this.debugLog(`Found zones: ${this.zones.length}`);
       this._zonesInitialized = true;
       this.requestUpdate();
@@ -717,21 +736,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   async _fetchZones() {
     if (!this.hass || !this._logic) return;
     try {
-      const entities = await this.hass.callWS({ type: 'config/entity_registry/list' });
-      this.zones = entities
-        .filter(entity => {
-          const entityId = entity.entity_id || '';
-          if (!entityId.startsWith('sensor.energy_power_monitor_')) return false;
-          if (this._logic._isUntrackedEntityId(entityId)) return false;
-          return true;
-        })
-        .map(entity => {
-          let friendlyName = this.hass.states[entity.entity_id]?.attributes.friendly_name || entity.entity_id;
-          friendlyName = friendlyName.replace(/ selected entities -/gi, '').replace(/ (Power|Energy)$/gi, '').trim();
-          if (!friendlyName) friendlyName = entity.entity_id;
-          return { entity_id: entity.entity_id, friendly_name: friendlyName };
-        })
-        .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
+      this.zones = await _fetchZonesHelper(this.hass, id => this._logic._isUntrackedEntityId(id));
       if (!this._config.zone && this.zones.length > 0) {
         this._config = { ...this._config, zone: this.zones[0].entity_id };
         this.fireConfigChanged();
@@ -763,8 +768,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   _generalFormSchema() {
-    const fontSizeOptions = [];
-    for (let i = 8; i <= 20; i += 0.5) fontSizeOptions.push(`${i.toFixed(1)}px`);
     const selectedZone = this._config?.zone ?? "";
     const zoneOptions = this.zones.map(zone => ({
       value: zone.entity_id,
@@ -954,53 +957,37 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 
   _computeLabel(schema) {
     switch (schema.name) {
-      case "zone":
-        return this._t("select_zone");
-      case "log_enabled":
-        return this._t("log_enabled");
-      case "show_name":
-        return this._t("show_name");
-      case "show_icon":
-        return this._t("show_icon");
-      case "show_untracked_values":
-        return this._t("show_untracked_values");
-      case "combine_value_untracked":
-        return this._t("combine_untracked_values");
-      case "levels_to_show":
-        return this._t("levels_to_display");
-      case "tracked_color":
-        return this._t("tracked_color");
-      case "untracked_color":
-        return this._t("untracked_color");
-      case "color_untracked_label":
-        return this._t("color_untracked_label");
-      case "room_name_position":
-        return this._t("zone_name_position");
-      case "remove_strings":
-        return this._t("remove_prefix");
-      case "tracked_value_size":
-        return this._t("tracked_value_size");
-      case "untracked_value_size":
-        return this._t("untracked_value_size");
-      case "room_name_size":
-        return this._t("zone_name_size");
-      case "icon_size":
-        return this._t("icon_size");
-      case "circle_size":
-        return this._t("circle_size");
-      case "ring_width":
-        return this._t("ring_width");
-      case "decimal_precision":
-        return this._t("decimal_precision");
-      default:
-        return schema.name;
+      case "zone":                  return this._t("select_zone");
+      case "log_enabled":           return this._t("log_enabled");
+      case "show_name":             return this._t("show_name");
+      case "show_icon":             return this._t("show_icon");
+      case "show_untracked_values": return this._t("show_untracked_values");
+      case "combine_value_untracked": return this._t("combine_untracked_values");
+      case "levels_to_show":        return this._t("levels_to_display");
+      case "tracked_color":         return this._t("tracked_color");
+      case "untracked_color":       return this._t("untracked_color");
+      case "color_untracked_label": return this._t("color_untracked_label");
+      case "room_name_position":    return this._t("zone_name_position");
+      case "remove_strings":        return this._t("remove_prefix");
+      case "tracked_value_size":    return this._t("tracked_value_size");
+      case "untracked_value_size":  return this._t("untracked_value_size");
+      case "room_name_size":        return this._t("zone_name_size");
+      case "icon_size":             return this._t("icon_size");
+      case "circle_size":           return this._t("circle_size");
+      case "ring_width":            return this._t("ring_width");
+      case "decimal_precision":     return this._t("decimal_precision");
+      default:                      return schema.name;
     }
   }
 
+  // FIX: previously a no-op switch that always returned "".
+  // The translation files already contain helper text for these two fields
+  // (remove_prefix_title, decimal_precision_title) — wire them in here.
   _computeHelper(schema) {
     switch (schema.name) {
-      default:
-        return "";
+      case "remove_strings":    return this._t("remove_prefix_title");
+      case "decimal_precision": return this._t("decimal_precision_title");
+      default:                  return "";
     }
   }
 
