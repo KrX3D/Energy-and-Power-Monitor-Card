@@ -985,7 +985,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   // (remove_prefix_title, decimal_precision_title) — wire them in here.
   _computeHelper(schema) {
     switch (schema.name) {
-      case "remove_strings":    return this._t("remove_prefix_title");
       case "decimal_precision": return this._t("decimal_precision_title");
       default:                  return "";
     }
@@ -1072,6 +1071,10 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         padding: 0;
         margin: 0;
         column-gap: 0;
+        min-height: 36px;
+      }
+      ha-form ha-settings-row + ha-settings-row {
+        margin-top: -8px;
       }
       ha-form ha-formfield {
         gap: 0;
@@ -1096,9 +1099,11 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       }
       ha-form .form {
         gap: 0;
+        row-gap: 0;
       }
       ha-form .root {
         gap: 0;
+        row-gap: 0;
       }
       ha-form ha-selector,
       ha-form ha-selector-select,
