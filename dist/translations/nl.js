@@ -9,6 +9,7 @@ export const TRANSLATIONS = {
     log_enabled: "Debuglogs inschakelen:",
     show_icon: "Pictogram tonen:",
     show_untracked_values: "Niet-getraceerde waarden tonen:",
+    hide_zero_values: "Entiteiten met nul watt verbergen:",
     combine_untracked_values: "Niet-getraceerde waarden combineren:",
     levels_to_display: "Niveaus om te tonen:",
     levels_all: "Alle",

@@ -9,6 +9,7 @@ export const TRANSLATIONS = {
     log_enabled: "启用调试日志：",
     show_icon: "显示图标：",
     show_untracked_values: "显示未跟踪数值：",
+    hide_zero_values: "隐藏零瓦实体：",
     combine_untracked_values: "合并未跟踪数值：",
     levels_to_display: "显示层级：",
     levels_all: "全部",

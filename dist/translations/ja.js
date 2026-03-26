@@ -9,6 +9,7 @@ export const TRANSLATIONS = {
     log_enabled: "デバッグログを有効化:",
     show_icon: "アイコンを表示:",
     show_untracked_values: "未追跡の値を表示:",
+    hide_zero_values: "ゼロワットのエンティティを非表示:",
     combine_untracked_values: "未追跡の値を合算:",
     levels_to_display: "表示する階層:",
     levels_all: "すべて",

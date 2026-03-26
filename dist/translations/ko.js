@@ -9,6 +9,7 @@ export const TRANSLATIONS = {
     log_enabled: "디버그 로그 활성화:",
     show_icon: "아이콘 표시:",
     show_untracked_values: "미추적 값 표시:",
+    hide_zero_values: "0와트 엔티티 숨기기:",
     combine_untracked_values: "미추적 값 합산:",
     levels_to_display: "표시할 단계:",
     levels_all: "모두",

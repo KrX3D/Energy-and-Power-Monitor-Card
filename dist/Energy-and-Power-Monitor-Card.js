@@ -58,16 +58,13 @@ class EnergyMonitorLogic {
       return value || fallback;
     };
 
-    // BUG FIX: ...config must be spread FIRST so the explicitly processed values
-    // below override the raw YAML strings. Previously ...config was at the END,
-    // which meant e.g. decimal_precision stayed a raw string instead of an int,
-    // and combine_value_untracked === true check was silently undone.
     return {
       ...config,
       log_enabled: config.log_enabled === true,
       show_name: config.show_name !== false,
       show_icon: config.show_icon !== false,
       show_untracked_values: config.show_untracked_values !== false,
+      hide_zero_values: config.hide_zero_values !== false,
       combine_value_untracked: config.combine_value_untracked === true,
       levels_to_show: config.levels_to_show || "all",
       tracked_color: normalizeColor(config.tracked_color, "#3CB371"),
@@ -99,8 +96,6 @@ class EnergyMonitorLogic {
 
   _isUntrackedEntityId(entityId) {
     if (!entityId) return false;
-    // CLEANUP: the previous regex was a strict subset of this includes() check
-    // and could never fire first — simplified to a single condition.
     return entityId.toLowerCase().includes('_untracked');
   }
 
@@ -258,28 +253,37 @@ class EnergyMonitorLogic {
 
   filterTree(tree) {
     const option = this.config.levels_to_show || "all";
+    let result = tree;
+
     if (option === "selected") {
-      return tree.filter(node => node.level === 0);
+      result = result.filter(node => node.level === 0);
     } else if (option === "first") {
-      return tree.filter(node => node.level <= 1);
+      result = result.filter(node => node.level <= 1);
     } else if (option === "parents") {
-      return tree.filter((node, idx) => {
+      result = result.filter((node, idx) => {
         const curLevel = node.level;
-        for (let j = idx + 1; j < tree.length; j++) {
-          if (tree[j].level <= curLevel) break;
-          if (tree[j].level === curLevel + 1) return true;
+        for (let j = idx + 1; j < result.length; j++) {
+          if (result[j].level <= curLevel) break;
+          if (result[j].level === curLevel + 1) return true;
         }
         return false;
       });
     }
-    return tree;
+
+    // Hide entities whose tracked (normal) value is exactly 0.
+    // Checked against the raw state string so it is independent of the
+    // combine_value_untracked setting. An entity with 0.1 W is kept;
+    // one with 0.0 W is hidden. Applied after level filtering.
+    if (this.config.hide_zero_values) {
+      result = result.filter(node => parseFloat(node.state) !== 0);
+    }
+
+    return result;
   }
 
   formatNumber(val) {
     if (val === null || val === undefined || isNaN(parseFloat(val))) return '';
 
-    // BUG FIX: previously used `parseInt(...) || 1` which made precision=0 show
-    // 1 decimal place (because 0 || 1 === 1). Use Number.isFinite guard instead.
     const raw = Number.isFinite(this.config.decimal_precision) ? this.config.decimal_precision : 1;
     const precision = Math.max(0, Math.min(3, raw));
 
@@ -767,11 +771,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     this.requestUpdate();
   }
 
-  // -----------------------------------------------------------------------
-  // Boolean rows rendered as plain HTML — bypasses ha-form-grid entirely
-  // so we have full control over spacing.
-  // -----------------------------------------------------------------------
-
   _renderBoolRow(key, label) {
     const checked = !!this._config?.[key];
     return html`
@@ -818,10 +817,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     this.fireConfigChanged();
     this.requestUpdate();
   }
-
-  // -----------------------------------------------------------------------
-  // Schemas — only select/color/text fields; booleans rendered manually above
-  // -----------------------------------------------------------------------
 
   _zoneSchema() {
     const selectedZone = this._config?.zone ?? "";
@@ -875,27 +870,25 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     const ringWidthOptions = ['2px','4px','6px','8px','10px','12px','16px'];
     const decimalOptions = ["0", "1", "2", "3"];
 
-    // color_untracked_label is a boolean — rendered manually in render(), not here
-    // tracked_color / untracked_color — rendered as direct ha-selector rows for live preview
     return [
-      { name: "room_name_position", selector: { select: { mode: "dropdown", options: [
+      { name: "room_name_position",   selector: { select: { mode: "dropdown", options: [
         { value: "inside", label: this._t("position_inside") },
         { value: "below",  label: this._t("position_below") },
       ] } } },
-      { name: "remove_strings",     selector: { text: { multiline: true } } },
-      { name: "tracked_value_size", selector: { select: { mode: "dropdown",
+      { name: "remove_strings",       selector: { text: { multiline: true } } },
+      { name: "tracked_value_size",   selector: { select: { mode: "dropdown",
         options: fontSizeOptions.map(s => ({ value: s, label: s })) } } },
       { name: "untracked_value_size", selector: { select: { mode: "dropdown",
         options: fontSizeOptions.map(s => ({ value: s, label: s })) } } },
-      { name: "room_name_size",     selector: { select: { mode: "dropdown",
+      { name: "room_name_size",       selector: { select: { mode: "dropdown",
         options: fontSizeOptions.map(s => ({ value: s, label: s })) } } },
-      { name: "icon_size",          selector: { select: { mode: "dropdown",
+      { name: "icon_size",            selector: { select: { mode: "dropdown",
         options: iconSizeOptions.map(s => ({ value: s, label: s })) } } },
-      { name: "circle_size",        selector: { select: { mode: "dropdown",
+      { name: "circle_size",          selector: { select: { mode: "dropdown",
         options: circleSizeOptions.map(s => ({ value: s, label: s })) } } },
-      { name: "ring_width",         selector: { select: { mode: "dropdown",
+      { name: "ring_width",           selector: { select: { mode: "dropdown",
         options: ringWidthOptions.map(v => ({ value: v, label: v })) } } },
-      { name: "decimal_precision",  selector: { select: { mode: "dropdown",
+      { name: "decimal_precision",    selector: { select: { mode: "dropdown",
         options: decimalOptions.map(v => ({ value: v, label: v })) } } },
     ];
   }
@@ -904,8 +897,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     switch (schema.name) {
       case "zone":                    return this._t("select_zone");
       case "levels_to_show":          return this._t("levels_to_display");
-      case "tracked_color":           return this._t("tracked_color");
-      case "untracked_color":         return this._t("untracked_color");
       case "room_name_position":      return this._t("zone_name_position");
       case "remove_strings":          return this._t("remove_prefix");
       case "tracked_value_size":      return this._t("tracked_value_size");
@@ -977,6 +968,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         ${this._renderBoolRow("show_name",               this._t("show_name"))}
         ${this._renderBoolRow("show_icon",               this._t("show_icon"))}
         ${this._renderBoolRow("show_untracked_values",   this._t("show_untracked_values"))}
+        ${this._renderBoolRow("hide_zero_values",        this._t("hide_zero_values"))}
         ${this._renderBoolRow("combine_value_untracked", this._t("combine_untracked_values"))}
       </div>
 
@@ -1013,7 +1005,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         font-size: 12.5px;
         margin-bottom: 4px;
       }
-      /* Manual boolean toggle rows — full spacing control */
       .bool-row {
         display: flex;
         align-items: center;
@@ -1028,7 +1019,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         flex: 1;
         padding-right: 8px;
       }
-      /* Direct color picker rows — live preview on drag */
       .color-row {
         display: flex;
         align-items: center;
@@ -1052,7 +1042,6 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
         cursor: pointer;
         flex-shrink: 0;
       }
-      /* ha-form used only for selects/colors/text — no booleans inside */
       ha-form {
         --mdc-typography-body2-font-size: 12.5px;
         --mdc-typography-subtitle1-font-size: 12.5px;

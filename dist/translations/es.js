@@ -9,6 +9,7 @@ export const TRANSLATIONS = {
     log_enabled: "Activar registros de depuración:",
     show_icon: "Mostrar icono:",
     show_untracked_values: "Mostrar valores no rastreados:",
+    hide_zero_values: "Ocultar entidades con cero vatios:",
     combine_untracked_values: "Combinar valores no rastreados:",
     levels_to_display: "Niveles a mostrar:",
     levels_all: "Todos",

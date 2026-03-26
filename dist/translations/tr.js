@@ -9,6 +9,7 @@ export const TRANSLATIONS = {
     log_enabled: "Hata ayıklama günlüklerini etkinleştir:",
     show_icon: "Simgeyi göster:",
     show_untracked_values: "Takip edilmeyen değerleri göster:",
+    hide_zero_values: "Sıfır wattlı varlıkları gizle:",
     combine_untracked_values: "Takip edilmeyen değerleri birleştir:",
     levels_to_display: "Gösterilecek seviyeler:",
     levels_all: "Hepsi",

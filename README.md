@@ -18,6 +18,9 @@ The **Energy and Power Monitor Card** is a custom Home Assistant card that works
 - **Untracked Values**:  
   Option to display untracked power/energy values separately.
 
+- **Hide Zero-Watt Entities**:  
+  Automatically hide any entity whose tracked value is exactly 0 W. Entities with any non-zero value (e.g. 0.1 W) are always shown. Enabled by default.
+
 - **Combine Values**:  
   When enabled, the card displays the combined value (tracked + untracked) in place of the tracked value.
 
@@ -87,6 +90,7 @@ The card uses `zone` as the selection key.
 | **Show Name**                   | Checkbox | `true`      | Toggle the display of the room name on the card. |
 | **Show Icon**                   | Checkbox | `true`      | Toggle the display of the room icon. |
 | **Show Untracked Values**       | Checkbox | `true`      | Toggle the display of untracked power/energy values. |
+| **Hide Zero-Watt Entities**     | Checkbox | `true`      | Hide entities whose tracked value is exactly 0 W. Entities with any non-zero value (e.g. 0.1 W) remain visible. |
 | **Combine Untracked Values**    | Checkbox | `false`     | When enabled, the card displays the sum of tracked and untracked values. |
 | **Room Name Position**          | Dropdown | `below`     | Choose where to display the room name: `inside` or `below` the circle. |
 | **Remove prefix (sep. by ';')**  | Text     | `""`        | Enter prefix strings to remove from child names if present at the start (followed by a space). |
@@ -113,6 +117,7 @@ log_enabled: false
 show_name: true
 show_icon: true
 show_untracked_values: true
+hide_zero_values: true
 combine_value_untracked: false
 levels_to_show: all
 remove_strings: "1 OG; Living Room; Office"
@@ -133,6 +138,6 @@ decimal_precision: 1
 
 1. Go to **Dashboards** and click **Add Card**.
 2. Select the **Energy and Power Monitor Card**.
-3. In **General Options**, choose the room, the levels to display, and toggle basic options (Show Name, Show Icon, Show Untracked Values, Combine Untracked Values).
-4. In **Style Options**, adjust colors (preview updates live while dragging), font sizes, icon and circle sizes, room name position, specify prefix removals (using `;` as the separator).
+3. In **General Options**, choose the room, the levels to display, and toggle options (Show Name, Show Icon, Show Untracked Values, Hide Zero-Watt Entities, Combine Untracked Values).
+4. In **Style Options**, adjust colors (preview updates live while dragging), font sizes, icon and circle sizes, room name position, and specify prefix removals (using `;` as the separator).
 5. Save your changes.
