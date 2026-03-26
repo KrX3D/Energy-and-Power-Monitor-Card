@@ -2,6 +2,8 @@
 
 The **Energy and Power Monitor Card** is a custom Home Assistant card that works alongside the [Energy and Power Monitor Integration](https://github.com/KrX3D/Energy-and-Power-Monitor-Integration). It allows you to monitor and display energy and power consumption for different rooms or devices using a user-friendly configuration interface. You can set up and configure the card directly through the UI or using YAML.
 
+![Card Preview](images/Card.png)
+
 ---
 
 ## Features
@@ -141,3 +143,6 @@ decimal_precision: 1
 3. In **General Options**, choose the room, the levels to display, and toggle options (Show Name, Show Icon, Show Untracked Values, Hide Zero-Watt Entities, Combine Untracked Values).
 4. In **Style Options**, adjust colors (preview updates live while dragging), font sizes, icon and circle sizes, room name position, and specify prefix removals (using `;` as the separator).
 5. Save your changes.
+
+![General Options](images/Options_1.png)
+![Style Options](images/Options_2.png)
