@@ -956,6 +956,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
           @value-changed=${formProps.onValueChanged}
         ></ha-form>
 
+        <div class="form-gap"></div>
+
         <ha-form
           .hass=${formProps.hass}
           .data=${formProps.data}
@@ -1045,6 +1047,10 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
       ha-form {
         --mdc-typography-body2-font-size: 12.5px;
         --mdc-typography-subtitle1-font-size: 12.5px;
+      }
+      /* Spacer between adjacent ha-form dropdown blocks */
+      .form-gap {
+        height: 8px;
       }
     `;
   }
