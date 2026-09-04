@@ -399,7 +399,6 @@ class EnergyandPowerMonitorCard extends LitElement {
     return {
       hass: { type: Object },
       config: { type: Object },
-      treeStructure: { type: Array },
       zones: { type: Array },
     };
   }
@@ -411,6 +410,8 @@ class EnergyandPowerMonitorCard extends LitElement {
     this.logic = null;
     this.zones = [];
     this._entityRegistryUnsub = null;
+    this._entityRegistrySubscribing = false;
+    this._registryUpdateDebounce = null;
     this._zonesInitialized = false;
   }
 
@@ -444,6 +445,7 @@ class EnergyandPowerMonitorCard extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    clearTimeout(this._registryUpdateDebounce);
     if (this._entityRegistryUnsub) {
       this._entityRegistryUnsub();
       this._entityRegistryUnsub = null;
@@ -451,13 +453,23 @@ class EnergyandPowerMonitorCard extends LitElement {
   }
 
   _subscribeEntityRegistry() {
-    if (!this.hass || this._entityRegistryUnsub) return;
+    if (!this.hass || this._entityRegistryUnsub || this._entityRegistrySubscribing) return;
+    this._entityRegistrySubscribing = true;
     this.hass.connection.subscribeEvents(
-      () => this._fetchZones().catch(e => this.debugLog(e)),
+      () => {
+        clearTimeout(this._registryUpdateDebounce);
+        this._registryUpdateDebounce = setTimeout(() => {
+          this._fetchZones().catch(e => this.debugLog(e));
+        }, 300);
+      },
       'entity_registry_updated'
     ).then(unsub => {
       this._entityRegistryUnsub = unsub;
-    }).catch(err => this.debugLog('Failed to subscribe entity_registry_updated: ' + err));
+      this._entityRegistrySubscribing = false;
+    }).catch(err => {
+      this._entityRegistrySubscribing = false;
+      this.debugLog('Failed to subscribe entity_registry_updated: ' + err);
+    });
   }
 
   async _fetchZones() {
@@ -694,6 +706,8 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
     this.zones = [];
     this._logic = null;
     this._entityRegistryUnsub = null;
+    this._entityRegistrySubscribing = false;
+    this._registryUpdateDebounce = null;
     this._zonesInitialized = false;
   }
 
@@ -721,6 +735,7 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    clearTimeout(this._registryUpdateDebounce);
     if (this._entityRegistryUnsub) {
       this._entityRegistryUnsub();
       this._entityRegistryUnsub = null;
@@ -728,13 +743,23 @@ class EnergyandPowerMonitorCardEditor extends LitElement {
   }
 
   _subscribeEntityRegistry() {
-    if (!this.hass || this._entityRegistryUnsub) return;
+    if (!this.hass || this._entityRegistryUnsub || this._entityRegistrySubscribing) return;
+    this._entityRegistrySubscribing = true;
     this.hass.connection.subscribeEvents(
-      () => this._fetchZones().catch(e => console.debug(e)),
+      () => {
+        clearTimeout(this._registryUpdateDebounce);
+        this._registryUpdateDebounce = setTimeout(() => {
+          this._fetchZones().catch(e => console.debug(e));
+        }, 300);
+      },
       'entity_registry_updated'
     ).then(unsub => {
       this._entityRegistryUnsub = unsub;
-    }).catch(err => console.debug('Editor subscribe failed', err));
+      this._entityRegistrySubscribing = false;
+    }).catch(err => {
+      this._entityRegistrySubscribing = false;
+      console.debug('Editor subscribe failed', err);
+    });
   }
 
   async _fetchZones() {
