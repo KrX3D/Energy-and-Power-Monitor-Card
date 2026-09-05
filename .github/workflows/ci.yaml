@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  syntax-and-translations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check card syntax
+        run: node --input-type=module --check < dist/Energy-and-Power-Monitor-Card.js
+
+      - name: Check translation module syntax
+        run: |
+          for f in dist/translations/*.js; do
+            echo "Checking $f"
+            node --input-type=module --check < "$f"
+          done
+
+      - name: Check translation key parity across locales
+        run: node scripts/check-translations.mjs
